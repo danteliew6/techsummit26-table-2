@@ -415,6 +415,9 @@ let db: ReturnType<typeof createDb>;
 // onPluginsReady (via its typed `appkit` param); the server auto-starts and
 // we never reference the returned map at the top level.
 await createApp({
+  // Disable persistent cache to avoid "must be owner of table
+  // appkit_cache_entries" errors. Use in-memory cache instead.
+  cache: { mode: 'memory' },
   plugins: [
     // Server auto-starts after onPluginsReady (AppKit 0.41+). The route
     // registration MUST run in onPluginsReady so it lands before the server
@@ -664,11 +667,24 @@ void (async () => {
       console.warn('[boot] could not resolve MLflow exporter auth from the app client — trace upload may fail:', (e as Error).message);
     }
 
-    mlflow.init({
-      trackingUri: 'databricks',
-      experimentId: agentExperimentId,
-      ...(mlflowHost && mlflowToken ? { host: mlflowHost, databricksToken: mlflowToken } : {}),
-    });
+    // When using explicit OAuth token, temporarily unset the PAT to avoid
+    // "more than one authorization method configured: oauth and pat" error.
+    // mlflow-tracing will use the explicit host+databricksToken we pass.
+    const savedPat = process.env.DATABRICKS_PAT_TOKEN;
+    try {
+      if (mlflowHost && mlflowToken) {
+        delete process.env.DATABRICKS_PAT_TOKEN;
+      }
+      mlflow.init({
+        trackingUri: 'databricks',
+        experimentId: agentExperimentId,
+        ...(mlflowHost && mlflowToken ? { host: mlflowHost, databricksToken: mlflowToken } : {}),
+      });
+    } finally {
+      if (savedPat !== undefined) {
+        process.env.DATABRICKS_PAT_TOKEN = savedPat;
+      }
+    }
     console.log(`[boot +${ms()}] MLflow tracing active`);
 
     // Silence one specific mlflow-tracing warning that fires for every

@@ -1,0 +1,19 @@
+# Hero decision chain — CUST-0005100
+
+**Hero question:** "CUST-0005100 is at risk of leaving — what is the next best action?"
+
+The chain below is linked by `customer_id` across the governed layer (synced position → open at-risk → model NBA → the committed RM action), demonstrating discover → recommend → human-approve → act.
+
+## 1. Position (why they matter / risk)
+- customer_id: `CUST-0005100`  ·  tier: affluent  ·  risk_band: critical  ·  attrition_risk_score: 0.802
+- total_balance_usd: 593282.6000000001  ·  balance_at_risk_usd: 573822.55  ·  revenue_at_risk_usd: 14665.563750000001  ·  min_days_to_maturity: 6
+
+## 2. Open at-risk (the maturing product + cross-sell candidate)
+- atrisk_product_id: PROD-DEP-2003  ·  atrisk_balance_usd: 573822.55  ·  days_to_maturity: 6  ·  current_rate_apy: 0.03  ·  candidate_cross_sell_product_id: PROD-INV-3001
+
+## 3. Model NBA (the recommendation)
+- recommended_action: **retention_offer**  ·  offer: PROD-DEP-2003 @ 0.0385  ·  predicted_retained_usd: 33172.681615500005  ·  predicted_net_value_usd: 28295.189940500004
+- action_ranking: "[{\"action\":\"retention_offer\",\"retained_revenue\":33172.68,\"cost\":4877.49,\"net_value\":28295.19},{\"action\":\"cross_sell\",\"retained_revenue\":9764.3,\"cost\":50.0,\"net_value\":9714.3},{\"action\":\"rm_outreach\",\"retained_revenue\":5134.28,\"cost\":40.0,\"net_value\":5094.28}]"
+
+## 4. Committed RM action(s) (the human-approved write to app.rm_actions)
+- action id `4`  ·  retention_offer  ·  status: overridden  ·  approved_by: rm_chen@meridian.com  ·  offered: PROD-DEP-2002 @ 0.0385  ·  created_at: 2026-08-27T05:08:54.059731+00:00

@@ -36,12 +36,15 @@ export function CustomerDrawer({ id, open, onOpenChange, onMutated }: Props) {
   const [bundle, setBundle] = useState<CustomerDetailBundle | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedTab, setSelectedTab] = useState('overview');
 
   useEffect(() => {
     if (!id) {
       setBundle(null);
       return;
     }
+    // Reset to overview tab when switching to a new customer
+    setSelectedTab('overview');
     setLoading(true);
     setError(null);
     fetchCustomerDetail(id)
@@ -92,7 +95,7 @@ export function CustomerDrawer({ id, open, onOpenChange, onMutated }: Props) {
                 )}
               </SheetDescription>
             </SheetHeader>
-            <Tabs defaultValue="overview" className="flex-1 flex flex-col min-h-0">
+            <Tabs value={selectedTab} onValueChange={setSelectedTab} className="flex-1 flex flex-col min-h-0">
               <TabsList className="mx-8 mt-4 w-fit">
                 <TabsTrigger value="overview">Overview</TabsTrigger>
                 <TabsTrigger value="why">Why flagged</TabsTrigger>
@@ -105,16 +108,16 @@ export function CustomerDrawer({ id, open, onOpenChange, onMutated }: Props) {
                   Activity{bundle.actions.length > 0 && ` (${bundle.actions.length})`}
                 </TabsTrigger>
               </TabsList>
-              <TabsContent value="overview" className="flex-1 overflow-y-auto px-8 py-6">
+              <TabsContent value="overview" className="flex-1 overflow-y-auto px-8 py-6 pb-32">
                 <OverviewTab bundle={bundle} />
               </TabsContent>
-              <TabsContent value="why" className="flex-1 overflow-y-auto px-8 py-6">
+              <TabsContent value="why" className="flex-1 overflow-y-auto px-8 py-6 pb-32">
                 <WhyFlaggedTab bundle={bundle} />
               </TabsContent>
-              <TabsContent value="nba" className="flex-1 overflow-y-auto px-8 py-6">
+              <TabsContent value="nba" className="flex-1 overflow-y-auto px-8 py-6 pb-32">
                 <NextBestActionTab bundle={bundle} onMutated={onMutated} />
               </TabsContent>
-              <TabsContent value="activity" className="flex-1 overflow-y-auto px-8 py-6">
+              <TabsContent value="activity" className="flex-1 overflow-y-auto px-8 py-6 pb-32">
                 <ActivityTab actions={bundle.actions} />
               </TabsContent>
             </Tabs>

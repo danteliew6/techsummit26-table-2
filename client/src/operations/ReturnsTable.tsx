@@ -4,7 +4,8 @@
  * Customer 360 drawer. Rows whose risk band changed between dataMutated
  * refetches pulse a soft highlight so the eye lands on what moved.
  */
-import { Search } from 'lucide-react';
+import { useState } from 'react';
+import { Search, ArrowUp, ArrowDown } from 'lucide-react';
 import { usePulseOnChange } from '@/lib/usePulseOnChange';
 import type { CustomerPositionRow, RiskBand } from '@/shared/types';
 import { RiskBandBadge, TierBadge, usd } from '@/shared/badges';
@@ -29,6 +30,9 @@ type Props = {
   onSelect: (id: string) => void;
 };
 
+type SortKey = 'revenueAtRisk' | 'balanceAtRisk' | 'attrition';
+type SortDir = 'asc' | 'desc';
+
 export function ReturnsTable({
   rows,
   loading,
@@ -39,6 +43,43 @@ export function ReturnsTable({
   onSearch,
   onSelect,
 }: Props) {
+  const [sortKey, setSortKey] = useState<SortKey>('revenueAtRisk');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortKey(key);
+      setSortDir('desc');
+    }
+  };
+
+  const sortedRows = [...rows].sort((a, b) => {
+    let aVal = 0;
+    let bVal = 0;
+    if (sortKey === 'revenueAtRisk') {
+      aVal = a.revenueAtRiskUsd ?? 0;
+      bVal = b.revenueAtRiskUsd ?? 0;
+    } else if (sortKey === 'balanceAtRisk') {
+      aVal = a.balanceAtRiskUsd ?? 0;
+      bVal = b.balanceAtRiskUsd ?? 0;
+    } else if (sortKey === 'attrition') {
+      aVal = a.attritionRiskScore ?? 0;
+      bVal = b.attritionRiskScore ?? 0;
+    }
+    return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
+  });
+
+  const renderSortIcon = (key: SortKey) => {
+    if (sortKey !== key) return null;
+    return sortDir === 'asc' ? (
+      <ArrowUp className="size-3 inline ml-1" />
+    ) : (
+      <ArrowDown className="size-3 inline ml-1" />
+    );
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
@@ -103,28 +144,34 @@ export function ReturnsTable({
               <tr>
                 <th className="text-left px-4 py-2 font-semibold">Customer</th>
                 <th className="text-left px-4 py-2 font-semibold">Risk</th>
-                <th className="text-left px-4 py-2 font-semibold">Attrition</th>
-                <th className="text-right px-4 py-2 font-semibold">Balance at risk</th>
-                <th className="text-right px-4 py-2 font-semibold">Revenue at risk</th>
+                <th className="text-left px-4 py-2 font-semibold cursor-pointer hover:text-foreground" onClick={() => toggleSort('attrition')}>
+                  Attrition {renderSortIcon('attrition')}
+                </th>
+                <th className="text-right px-4 py-2 font-semibold cursor-pointer hover:text-foreground" onClick={() => toggleSort('balanceAtRisk')}>
+                  Balance at risk {renderSortIcon('balanceAtRisk')}
+                </th>
+                <th className="text-right px-4 py-2 font-semibold cursor-pointer hover:text-foreground" onClick={() => toggleSort('revenueAtRisk')}>
+                  Revenue at risk {renderSortIcon('revenueAtRisk')}
+                </th>
                 <th className="text-right px-4 py-2 font-semibold">Matures</th>
               </tr>
             </thead>
             <tbody>
-              {loading && rows.length === 0 && (
+              {loading && sortedRows.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
                     Loading…
                   </td>
                 </tr>
               )}
-              {!loading && rows.length === 0 && (
+              {!loading && sortedRows.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
                     No at-risk customers match the current filters.
                   </td>
                 </tr>
               )}
-              {rows.map((r) => (
+              {sortedRows.map((r) => (
                 <Row key={r.customerId} row={r} onSelect={onSelect} />
               ))}
             </tbody>

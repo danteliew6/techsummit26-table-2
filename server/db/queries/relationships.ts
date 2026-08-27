@@ -88,6 +88,16 @@ function toOpenAtrisk(r: OpenAtriskSelect): OpenAtriskRow {
 }
 
 function toNba(r: NbaSelect): NbaRecommendationRow {
+  // Normalize actionRanking entries from DB format to client format
+  const actionRanking = (r.actionRanking ?? []).map((entry: any) => ({
+    actionType: entry.action as ActionType,
+    predictedRetainedUsd: entry.retained_revenue,
+    predictedNetValueUsd: entry.net_value,
+    costUsd: entry.cost,
+    offeredProductId: entry.offeredProductId,
+    rateApy: entry.rateApy,
+  }));
+
   return {
     customerId: r.customerId,
     recommendedAction: r.recommendedAction as ActionType,
@@ -95,7 +105,7 @@ function toNba(r: NbaSelect): NbaRecommendationRow {
     recommendedRateApy: r.recommendedRateApy,
     predictedRetainedUsd: r.predictedRetainedUsd ?? 0,
     predictedNetValueUsd: r.predictedNetValueUsd ?? 0,
-    actionRanking: r.actionRanking ?? [],
+    actionRanking,
     scoredAt: iso(r.scoredAt),
   };
 }

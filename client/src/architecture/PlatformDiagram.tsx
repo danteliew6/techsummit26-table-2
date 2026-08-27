@@ -389,7 +389,7 @@ export function PlatformDiagram() {
               href={href(R.catalog.url)}
               icon={<UCIcon />}
               title="Unity Catalog"
-              sub="table_2.exercise — one governed schema + lineage"
+              sub="meridian.retention — one governed schema + lineage"
             />
             <Prod
               href={href(R.gateway.url)}

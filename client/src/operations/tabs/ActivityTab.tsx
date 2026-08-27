@@ -14,6 +14,11 @@ function fmt(iso: string): string {
   }
 }
 
+function formatAPY(apy: number | null | undefined): string {
+  if (apy == null) return '';
+  return `${(apy * 100).toFixed(2)}%`;
+}
+
 export function ActivityTab({ actions }: { actions: RmActionRow[] }) {
   if (!actions || actions.length === 0) {
     return (
@@ -36,7 +41,7 @@ export function ActivityTab({ actions }: { actions: RmActionRow[] }) {
           <div className="px-4 py-3 space-y-2 text-sm">
             <div className="flex gap-3 flex-wrap text-xs text-muted-foreground">
               {a.offeredProductId && <span>Product {a.offeredProductId}</span>}
-              {a.rateApy != null && <span>{a.rateApy}% APY</span>}
+              {a.rateApy != null && <span>{formatAPY(a.rateApy)} APY</span>}
               {a.predictedRetainedUsd != null && (
                 <span>{usd(a.predictedRetainedUsd)} predicted retained</span>
               )}

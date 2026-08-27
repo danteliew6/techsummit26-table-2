@@ -67,30 +67,35 @@ export function registerRelationshipRoutes(
     '/api/relationships/customers/:id/actions',
     express.json(),
     async (req, res) => {
-      const customerId = String(req.params.id);
-      const by = getCurrentUserEmail(req);
-      const body = req.body as {
-        actionType?: ActionType;
-        offeredProductId?: string | null;
-        rateApy?: number | null;
-        draftedNote?: string | null;
-        predictedRetainedUsd?: number | null;
-      };
-      if (!body.actionType) {
-        res.status(400).json({ error: 'actionType is required' });
-        return;
+      try {
+        const customerId = String(req.params.id);
+        const by = getCurrentUserEmail(req);
+        const body = req.body as {
+          actionType?: ActionType;
+          offeredProductId?: string | null;
+          rateApy?: number | null;
+          draftedNote?: string | null;
+          predictedRetainedUsd?: number | null;
+        };
+        if (!body.actionType) {
+          res.status(400).json({ error: 'actionType is required' });
+          return;
+        }
+        const row = await createRmAction(db, {
+          customerId,
+          actionType: body.actionType,
+          offeredProductId: body.offeredProductId ?? null,
+          rateApy: body.rateApy ?? null,
+          draftedNote: body.draftedNote ?? null,
+          predictedRetainedUsd: body.predictedRetainedUsd ?? null,
+          approvedBy: by,
+          status: 'approved',
+        });
+        res.json(row);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        res.status(500).json({ error: message });
       }
-      const row = await createRmAction(db, {
-        customerId,
-        actionType: body.actionType,
-        offeredProductId: body.offeredProductId ?? null,
-        rateApy: body.rateApy ?? null,
-        draftedNote: body.draftedNote ?? null,
-        predictedRetainedUsd: body.predictedRetainedUsd ?? null,
-        approvedBy: by,
-        status: 'approved',
-      });
-      res.json(row);
     },
   );
 
@@ -99,17 +104,22 @@ export function registerRelationshipRoutes(
     '/api/relationships/actions/:actionId/decide',
     express.json(),
     async (req, res) => {
-      const actionId = String(req.params.actionId);
-      const by = getCurrentUserEmail(req);
-      const body = req.body as { status?: RmActionStatus; notes?: string };
-      const status = body.status ?? 'approved';
-      await updateRmActionStatus(db, actionId, status, {
-        at: new Date().toISOString(),
-        by,
-        action: status,
-        notes: body.notes,
-      });
-      res.json({ ok: true });
+      try {
+        const actionId = String(req.params.actionId);
+        const by = getCurrentUserEmail(req);
+        const body = req.body as { status?: RmActionStatus; notes?: string };
+        const status = body.status ?? 'approved';
+        await updateRmActionStatus(db, actionId, status, {
+          at: new Date().toISOString(),
+          by,
+          action: status,
+          notes: body.notes,
+        });
+        res.json({ ok: true });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        res.status(500).json({ error: message });
+      }
     },
   );
 }

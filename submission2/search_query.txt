@@ -1,7 +1,4 @@
-Lakebase Search (retrieval never leaves the customer's account) over the product
-catalog. Natural-language query:
+Lakebase Search over the product catalog (retrieval stays in Lakebase — never leaves the customer account).
 
-  "wealth advisory account for an affluent long-tenure customer"
-
-SQL executed (BM25 full-text over meridian.products.description, backed by
-idx_products_desc_bm25 / GIN idx_products_desc_fts). Save output as search_result.json.
+Natural-language query: "managed wealth advisory account"
+SQL: websearch_to_tsquery full-text over meridian.products.description (BM25/GIN index idx_products_desc_bm25 / idx_products_desc_fts), ranked by ts_rank. Result saved to search_result.json.

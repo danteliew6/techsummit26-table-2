@@ -26,6 +26,12 @@ const ACTION_LABEL: Record<ActionType, string> = {
   rm_outreach: 'RM outreach',
 };
 
+/** Format APY as a percentage string (multiply by 100 and fix to 2 decimals). */
+function formatAPY(apy: number | null | undefined): string {
+  if (apy == null) return '';
+  return `${(apy * 100).toFixed(2)}%`;
+}
+
 const ACTION_RATIONALE: Record<ActionType, string> = {
   retention_offer: 'Match the competing rate before maturity to keep the balance.',
   cross_sell: 'Deepen the relationship with a product they qualify for.',
@@ -41,7 +47,7 @@ function draftNote(
   const product = entry?.offeredProductId ?? bundle.nba?.recommendedOfferProductId;
   switch (actionType) {
     case 'retention_offer':
-      return `Reached out to offer a competitive renewal${rate ? ` at ${rate}% APY` : ''}${product ? ` on ${product}` : ''} ahead of maturity. Emphasized the long-standing relationship and that no action is needed to keep the balance at Meridian.`;
+      return `Reached out to offer a competitive renewal${rate ? ` at ${formatAPY(rate)} APY` : ''}${product ? ` on ${product}` : ''} ahead of maturity. Emphasized the long-standing relationship and that no action is needed to keep the balance at Meridian.`;
     case 'cross_sell':
       return `Introduced ${product ?? 'a product the customer qualifies for'} as a fit for their profile and goals. Framed as a value-add on top of the existing relationship.`;
     case 'rm_outreach':
@@ -193,7 +199,7 @@ export function NextBestActionTab({
             <Stat
               label="Attrition risk"
               tone="risk"
-              value={pos.attritionRiskScore.toFixed(2)}
+              value={`${Math.round(pos.attritionRiskScore * 100)}%`}
             />
           )}
           {pos && (
@@ -207,7 +213,7 @@ export function NextBestActionTab({
             value={maturityDays != null ? `${maturityDays}d` : '—'}
             sub={
               open?.currentRateApy != null
-                ? `${open.currentRateApy}% APY${open.atriskProductId ? ` · ${open.atriskProductId}` : ''}`
+                ? `${formatAPY(open.currentRateApy)} APY${open.atriskProductId ? ` · ${open.atriskProductId}` : ''}`
                 : open?.atriskProductId ?? undefined
             }
           />
@@ -230,7 +236,7 @@ export function NextBestActionTab({
                 {nba.recommendedOfferProductId && (
                   <span className="text-sm font-medium">
                     {nba.recommendedOfferProductId}
-                    {nba.recommendedRateApy != null && ` · ${nba.recommendedRateApy}% APY`}
+                    {nba.recommendedRateApy != null && ` · ${formatAPY(nba.recommendedRateApy)} APY`}
                   </span>
                 )}
               </div>
@@ -286,7 +292,7 @@ export function NextBestActionTab({
               <div className="mt-1 flex items-center justify-between gap-3">
                 <span className="text-xs text-muted-foreground">
                   {o.offeredProductId ? `${o.offeredProductId}` : ACTION_LABEL[o.actionType]}
-                  {o.rateApy != null && ` · ${o.rateApy}% APY`}
+                  {o.rateApy != null && ` · ${formatAPY(o.rateApy)} APY`}
                 </span>
                 <span className="text-[11px] text-muted-foreground tabular-nums">
                   {o.predictedNetValueUsd != null ? `net ${usd(o.predictedNetValueUsd)}` : ''}

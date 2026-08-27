@@ -16,6 +16,11 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
+function formatAPY(apy: number | null | undefined): string {
+  if (apy == null) return '—';
+  return `${(apy * 100).toFixed(2)}% APY`;
+}
+
 export function OverviewTab({ bundle }: { bundle: CustomerDetailBundle }) {
   const p = bundle.position;
   if (!p) {
@@ -81,7 +86,7 @@ export function WhyFlaggedTab({ bundle }: { bundle: CustomerDetailBundle }) {
         />
         <Row
           label="Current rate"
-          value={oar?.currentRateApy != null ? `${oar.currentRateApy}% APY` : '—'}
+          value={formatAPY(oar?.currentRateApy)}
         />
       </dl>
 
