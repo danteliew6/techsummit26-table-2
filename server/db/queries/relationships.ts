@@ -243,6 +243,18 @@ export async function searchProducts(
   return rows.map(toProduct);
 }
 
+export async function getProduct(
+  db: AppDb,
+  productId: string,
+): Promise<ProductRow | null> {
+  const rows = await db
+    .select()
+    .from(products)
+    .where(eq(products.productId, productId))
+    .limit(1);
+  return rows[0] ? toProduct(rows[0]) : null;
+}
+
 export async function getRiskMetrics(db: AppDb): Promise<RiskMetrics> {
   const rows = await db
     .select({

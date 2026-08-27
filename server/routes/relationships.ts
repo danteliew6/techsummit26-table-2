@@ -11,8 +11,11 @@ import {
   listRmActions,
   createRmAction,
   updateRmActionStatus,
+  searchProducts,
+  getProduct,
 } from '../db/queries/index.js';
 import type { ActionType, RmActionStatus } from '../../client/src/shared/types.js';
+import { generateDraft } from '../lib/draft.js';
 
 /**
  * REST endpoints for the Meridian Relationship Desk UI:
@@ -122,4 +125,92 @@ export function registerRelationshipRoutes(
       }
     },
   );
+
+  // Feature A: Generate AI draft outreach note
+  app.post(
+    '/api/relationships/customers/:id/draft',
+    express.json(),
+    async (req, res) => {
+      try {
+        const customerId = String(req.params.id);
+        const body = req.body as {
+          actionType?: ActionType;
+          offeredProductId?: string | null;
+          rateApy?: number | null;
+        };
+        if (!body.actionType) {
+          res.status(400).json({ error: 'actionType is required' });
+          return;
+        }
+        // Load the customer context
+        const [position, openAtrisk] = await Promise.all([
+          getCustomerPosition(db, customerId),
+          getOpenAtrisk(db, customerId),
+        ]);
+        if (!position && !openAtrisk) {
+          res.status(404).json({ error: `Customer ${customerId} not found` });
+          return;
+        }
+        // Get Databricks host and model from execution context
+        const { client } = await import('@databricks/appkit').then((m) =>
+          m.getExecutionContext(),
+        );
+        const databricksHost = (
+          (client.config as { host?: string }).host ??
+          process.env.DATABRICKS_HOST ??
+          ''
+        ).replace(/\/$/, '');
+        const model =
+          process.env.AGENT_MODEL ||
+          process.env.MODEL ??
+          'table_2.exercise.meridian_app_llm';
+        if (!databricksHost) {
+          res.status(500).json({ error: 'DATABRICKS_HOST not configured' });
+          return;
+        }
+        // Generate draft
+        const draft = await generateDraft(req, {
+          actionType: body.actionType,
+          offeredProductId: body.offeredProductId,
+          rateApy: body.rateApy,
+          position,
+          openAtrisk,
+        }, { databricksHost, model });
+        res.json({ draft });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error('[draft] error:', message);
+        res.status(500).json({ error: message });
+      }
+    },
+  );
+
+  // Feature B: Product search
+  app.get('/api/relationships/products/search', async (req, res) => {
+    try {
+      const q = String(req.query.q ?? '');
+      const limit = Math.min(Math.floor(Number(req.query.limit ?? 8)), 50);
+      const rows = await searchProducts(db, q, limit);
+      res.json(rows);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      res.status(500).json({ error: message });
+    }
+  });
+
+  // Feature B: Product details
+  app.get('/api/relationships/products/:id', async (req, res) => {
+    try {
+      const productId = String(req.params.id);
+      const product = await getProduct(db, productId);
+      if (!product) {
+        res.status(404).json({ error: `Product ${productId} not found` });
+        return;
+      }
+      res.json(product);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      res.status(500).json({ error: message });
+    }
+  });
 }

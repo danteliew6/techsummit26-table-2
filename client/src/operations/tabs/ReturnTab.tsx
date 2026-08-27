@@ -13,12 +13,12 @@
  * --success, recommended accent → --primary, labels → --muted-foreground.
  */
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { CheckCircle2, TriangleAlert, Sparkles, RotateCcw } from 'lucide-react';
+import { CheckCircle2, TriangleAlert, Sparkles, RotateCcw, Search, Loader2, XCircle } from 'lucide-react';
 import type { CustomerDetailBundle } from '@/lib/relationships';
-import { createRelationshipAction } from '@/lib/relationships';
+import { createRelationshipAction, generateDraftOutreach, searchProductsCatalog } from '@/lib/relationships';
 import { dataMutated } from '@/lib/events';
 import { ActionTypeBadge, RiskBandBadge, ActionStatusBadge, usd } from '@/shared/badges';
-import type { ActionType, ActionRankingEntry } from '@/shared/types';
+import type { ActionType, ActionRankingEntry, ProductRow } from '@/shared/types';
 
 const ACTION_LABEL: Record<ActionType, string> = {
   retention_offer: 'Retention offer',
@@ -107,6 +107,18 @@ export function NextBestActionTab({
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<ActionType | null>(null);
 
+  // Feature A: draft generation
+  const [draftGenerating, setDraftGenerating] = useState(false);
+  const [draftError, setDraftError] = useState<string | null>(null);
+
+  // Feature B: product search
+  const [productSearchOpen, setProductSearchOpen] = useState(false);
+  const [productSearchQuery, setProductSearchQuery] = useState('');
+  const [productSearchResults, setProductSearchResults] = useState<ProductRow[]>([]);
+  const [productSearchLoading, setProductSearchLoading] = useState(false);
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+  const [productSearchError, setProductSearchError] = useState<string | null>(null);
+
   useEffect(() => {
     const rec = nba?.recommendedAction ?? 'retention_offer';
     setSelected(rec);
@@ -124,6 +136,42 @@ export function NextBestActionTab({
 
   function resetDraft() {
     setNote(draftNote(selected, bundle, ranking.find((r) => r.actionType === selected)));
+  }
+
+  async function generateDraft() {
+    setDraftGenerating(true);
+    setDraftError(null);
+    try {
+      const entry = ranking.find((r) => r.actionType === selected);
+      const result = await generateDraftOutreach(bundle.customerId, {
+        actionType: selected,
+        offeredProductId: selectedProductId ?? entry?.offeredProductId ?? nba?.recommendedOfferProductId ?? null,
+        rateApy: selectedProductId ? undefined : entry?.rateApy ?? nba?.recommendedRateApy ?? null,
+      });
+      setNote(result.draft);
+    } catch (e) {
+      setDraftError((e as Error).message);
+    } finally {
+      setDraftGenerating(false);
+    }
+  }
+
+  async function searchProducts() {
+    setProductSearchLoading(true);
+    setProductSearchError(null);
+    try {
+      const results = await searchProductsCatalog(productSearchQuery, 8);
+      setProductSearchResults(results);
+    } catch (e) {
+      setProductSearchError((e as Error).message);
+    } finally {
+      setProductSearchLoading(false);
+    }
+  }
+
+  function selectProduct(product: ProductRow) {
+    setSelectedProductId(product.productId);
+    setProductSearchOpen(false);
   }
 
   async function approve() {
@@ -303,6 +351,87 @@ export function NextBestActionTab({
         })}
       </section>
 
+      {/* 3.5 — SEARCH PRODUCTS: enrich recommendations with cross-sell */}
+      <section className="space-y-2">
+        <div className="text-xs font-semibold uppercase tracking-[0.15em] text-muted-foreground">
+          Find a product (optional)
+        </div>
+        <div className="rounded-lg border border-border bg-background p-3 space-y-2">
+          {selectedProductId ? (
+            // Selected product display
+            <div className="flex items-center justify-between p-2 rounded bg-primary/10 border border-primary/30">
+              <div className="text-sm font-medium">{selectedProductId}</div>
+              <button
+                onClick={() => setSelectedProductId(null)}
+                className="text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <XCircle className="size-4" />
+              </button>
+            </div>
+          ) : (
+            // Search box
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" />
+                <input
+                  type="text"
+                  placeholder="Search products (e.g., 'high yield savings')..."
+                  value={productSearchQuery}
+                  onChange={(e) => setProductSearchQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && searchProducts()}
+                  className="w-full rounded-md border border-border bg-background pl-8 pr-3 py-2 text-sm outline-none focus:border-primary/50"
+                />
+              </div>
+              <button
+                onClick={searchProducts}
+                disabled={!productSearchQuery.trim() || productSearchLoading}
+                className="px-3 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-opacity inline-flex items-center gap-1"
+              >
+                {productSearchLoading ? (
+                  <Loader2 className="size-3 animate-spin" />
+                ) : (
+                  <Search className="size-3" />
+                )}
+              </button>
+            </div>
+          )}
+
+          {/* Search results */}
+          {productSearchResults.length > 0 && !selectedProductId && (
+            <div className="space-y-1 max-h-60 overflow-y-auto">
+              {productSearchResults.map((p) => (
+                <button
+                  key={p.productId}
+                  onClick={() => selectProduct(p)}
+                  className="w-full text-left rounded-md border border-border p-2 hover:border-primary/50 hover:bg-primary/5 transition-colors text-xs space-y-0.5"
+                >
+                  <div className="font-medium">{p.productName}</div>
+                  <div className="text-muted-foreground">
+                    {p.productType && `${p.productType} · `}
+                    {p.rateApy != null ? `${(p.rateApy * 100).toFixed(2)}% APY` : 'Rate TBD'}
+                    {p.minBalanceUsd != null && ` · min ${usd(p.minBalanceUsd)}`}
+                  </div>
+                  {p.description && (
+                    <div className="text-muted-foreground line-clamp-1">{p.description}</div>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {productSearchError && (
+            <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 px-2 py-1.5 text-xs text-destructive">
+              <TriangleAlert className="size-3 mt-0.5 shrink-0" />
+              <span>Search failed: {productSearchError}</span>
+            </div>
+          )}
+
+          {productSearchResults.length === 0 && productSearchQuery && !productSearchLoading && !productSearchError && (
+            <div className="text-xs text-muted-foreground text-center py-2">No products found</div>
+          )}
+        </div>
+      </section>
+
       {/* 4 — DRAFT: the outreach note */}
       <section className="space-y-2">
         <div className="flex items-center justify-between">
@@ -313,14 +442,34 @@ export function NextBestActionTab({
             Outreach note — {ACTION_LABEL[selected]}
           </label>
           {!done && (
-            <button
-              onClick={resetDraft}
-              className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <RotateCcw className="size-3" /> Reset draft
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={generateDraft}
+                disabled={draftGenerating}
+                className="inline-flex items-center gap-1 text-[11px] text-primary hover:text-primary/80 transition-colors disabled:opacity-50"
+              >
+                {draftGenerating ? (
+                  <Loader2 className="size-3 animate-spin" />
+                ) : (
+                  <Sparkles className="size-3" />
+                )}
+                Generate draft
+              </button>
+              <button
+                onClick={resetDraft}
+                className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <RotateCcw className="size-3" /> Reset draft
+              </button>
+            </div>
           )}
         </div>
+        {draftError && (
+          <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+            <TriangleAlert className="size-3.5 mt-0.5 shrink-0" />
+            <span>Couldn't generate draft: {draftError}. Try again.</span>
+          </div>
+        )}
         <textarea
           id="nba-note"
           value={note}

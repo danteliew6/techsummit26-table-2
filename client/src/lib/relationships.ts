@@ -14,6 +14,7 @@ import type {
   RiskMetrics,
   RmActionRow,
   RmActionStatus,
+  ProductRow,
 } from '@/shared/types';
 
 /** Unified activity feed (rm_actions) — powers the home page "Recent activity". */
@@ -102,4 +103,52 @@ export async function decideRelationshipAction(
     ),
     `/api/relationships/actions/${actionId}/decide`,
   );
+}
+
+// Feature A: Generate AI draft outreach
+export async function generateDraftOutreach(
+  customerId: string,
+  payload: {
+    actionType: ActionType;
+    offeredProductId?: string | null;
+    rateApy?: number | null;
+  },
+): Promise<{ draft: string }> {
+  const res = await okOrThrow(
+    await fetch(
+      `/api/relationships/customers/${encodeURIComponent(customerId)}/draft`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      },
+    ),
+    `/api/relationships/customers/${customerId}/draft`,
+  );
+  return res.json();
+}
+
+// Feature B: Search products
+export async function searchProductsCatalog(
+  query: string,
+  limit = 8,
+): Promise<ProductRow[]> {
+  const res = await okOrThrow(
+    await fetch(
+      `/api/relationships/products/search?q=${encodeURIComponent(query)}&limit=${limit}`,
+    ),
+    '/api/relationships/products/search',
+  );
+  return res.json();
+}
+
+// Feature B: Get product details
+export async function getProductDetail(
+  productId: string,
+): Promise<ProductRow> {
+  const res = await okOrThrow(
+    await fetch(`/api/relationships/products/${encodeURIComponent(productId)}`),
+    `/api/relationships/products/${productId}`,
+  );
+  return res.json();
 }
