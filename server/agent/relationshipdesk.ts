@@ -53,6 +53,27 @@ import * as mlflow from 'mlflow-tracing';
 import { z } from 'zod';
 import { authHeaders } from '../lib/auth.js';
 import type { AppDb } from '../db/index.js';
+import {
+  getCustomerPosition,
+  getOpenAtrisk,
+  getWorstOpenAtrisk,
+  getNbaRecommendation,
+  searchProducts as searchProductsQuery,
+  createRmAction,
+} from '../db/queries/relationships.js';
+import type { ActionType } from '../../client/src/shared/types.js';
+
+/** Map the model's free-text action_type onto the rm_actions enum. */
+function normalizeActionType(raw: string): ActionType {
+  const s = (raw || '').toLowerCase();
+  if (/cross|introduce|upsell|up-sell|invest|advis|new product/.test(s)) {
+    return 'cross_sell';
+  }
+  if (/outreach|call|contact|follow|schedule|meeting/.test(s)) {
+    return 'rm_outreach';
+  }
+  return 'retention_offer';
+}
 // Data-backend tool factories. The template demo uses MAS, but if your
 // demo has only a Genie space, swap `askMasTool` → `askGenieTool` and
 // update the AgentContext field below (masEndpointName → genieSpaceId).
@@ -132,9 +153,39 @@ function makeTools(ctx: AgentContext) {
     execute: async ({ customer_id }) =>
       mlflow.withSpan(
         async () => {
-          throw new Error(
-            'Not implemented — this is a training stub. Implement this tool by reading from app.customer_position and app.open_atrisk. See APP_WORKSHOP.md for guidance.',
-          );
+          // Resolve the target: explicit id, else the worst open at-risk.
+          let atrisk = customer_id
+            ? await getOpenAtrisk(ctx.db, customer_id)
+            : await getWorstOpenAtrisk(ctx.db);
+          const targetId = customer_id ?? atrisk?.customerId ?? null;
+          if (!targetId) return { found: false };
+          const pos = await getCustomerPosition(ctx.db, targetId);
+          if (!pos && !atrisk) return { found: false };
+          if (!atrisk && targetId) {
+            atrisk = await getOpenAtrisk(ctx.db, targetId);
+          }
+          return {
+            found: true,
+            customer_id: targetId,
+            tier: pos?.tier ?? null,
+            tenure_years: pos?.tenureYears ?? null,
+            home_metro: pos?.homeMetro ?? null,
+            attrition_risk_score:
+              atrisk?.attritionRiskScore ?? pos?.attritionRiskScore ?? null,
+            total_balance_usd: pos?.totalBalanceUsd ?? null,
+            balance_at_risk_usd:
+              atrisk?.balanceAtRiskUsd ?? pos?.balanceAtRiskUsd ?? null,
+            revenue_at_risk_usd:
+              atrisk?.revenueAtRiskUsd ?? pos?.revenueAtRiskUsd ?? null,
+            atrisk_product_id: atrisk?.atriskProductId ?? null,
+            atrisk_balance_usd: atrisk?.atriskBalanceUsd ?? null,
+            days_to_maturity:
+              atrisk?.daysToMaturity ?? pos?.minDaysToMaturity ?? null,
+            current_rate_apy: atrisk?.currentRateApy ?? null,
+            candidate_cross_sell_product_id:
+              atrisk?.candidateCrossSellProductId ?? null,
+            profile_summary: pos?.profileSummary ?? null,
+          };
         },
         {
           name: 'find_atrisk_customer',
@@ -154,9 +205,20 @@ function makeTools(ctx: AgentContext) {
     execute: async ({ customer_id }) =>
       mlflow.withSpan(
         async () => {
-          throw new Error(
-            'Not implemented — this is a training stub. Implement this tool by querying app.nba_recommendations. See APP_WORKSHOP.md for guidance.',
-          );
+          const nba = await getNbaRecommendation(ctx.db, customer_id);
+          if (!nba) return { found: false, customer_id };
+          return {
+            found: true,
+            customer_id: nba.customerId,
+            recommended_action: nba.recommendedAction,
+            recommended_offer_product_id: nba.recommendedOfferProductId,
+            recommended_rate_apy: nba.recommendedRateApy,
+            predicted_retained_usd: nba.predictedRetainedUsd,
+            predicted_net_value_usd: nba.predictedNetValueUsd,
+            // The three ranked options verbatim, so the model can quote the
+            // tradeoff and recompute the what-if arithmetically.
+            action_ranking: nba.actionRanking,
+          };
         },
         {
           name: 'rank_next_best_actions',
@@ -176,9 +238,19 @@ function makeTools(ctx: AgentContext) {
     execute: async ({ query }) =>
       mlflow.withSpan(
         async () => {
-          throw new Error(
-            'Not implemented — this is a training stub. Implement this tool by searching app.products on product_name + description. See APP_WORKSHOP.md for guidance.',
-          );
+          const rows = await searchProductsQuery(ctx.db, query, 8);
+          return {
+            query,
+            results: rows.map((p) => ({
+              product_id: p.productId,
+              product_name: p.productName,
+              product_type: p.productType,
+              segment: p.segment,
+              rate_apy: p.rateApy,
+              min_balance_usd: p.minBalanceUsd,
+              description: p.description,
+            })),
+          };
         },
         {
           name: 'search_products',
@@ -202,9 +274,36 @@ function makeTools(ctx: AgentContext) {
     execute: async (args) =>
       mlflow.withSpan(
         async () => {
-          throw new Error(
-            'Not implemented — this is a training stub. Implement this tool by writing to app.rm_actions. See APP_WORKSHOP.md for guidance.',
-          );
+          // Human-in-the-loop: the agent instructions require explicit user
+          // approval before this tool is ever called. We record the approved
+          // action to the ONE writable table (app.rm_actions), attributed to
+          // the viewing user for audit. The client refreshes the queue/KPIs
+          // when the chat turn completes (dataMutated bus in the UI).
+          const actionType = normalizeActionType(args.action_type);
+          // Pull the model's predicted retained $ so the record carries the
+          // value the RM acted on (best-effort; null if no recommendation).
+          const nba = await getNbaRecommendation(ctx.db, args.customer_id);
+          const row = await createRmAction(ctx.db, {
+            customerId: args.customer_id,
+            actionType,
+            offeredProductId: args.offered_product_id,
+            rateApy: args.rate_apy,
+            draftedNote: args.drafted_note,
+            predictedRetainedUsd:
+              nba && nba.recommendedAction === actionType
+                ? nba.predictedRetainedUsd
+                : (nba?.predictedRetainedUsd ?? null),
+            approvedBy: ctx.userEmail,
+            status: 'approved',
+          });
+          return {
+            action_id: row.id,
+            customer_id: row.customerId,
+            action_type: row.actionType,
+            status: row.status,
+            created_at: row.createdAt,
+            recorded_by: ctx.userEmail,
+          };
         },
         {
           name: 'execute_nba_action',

@@ -1,200 +1,191 @@
 /**
- * "Return" tab of the drawer. Shows return-level fields + decision
- * history + the approve/reject/escalate form.
+ * Customer 360 — "Next best action" tab. Shows the model's ranked actions,
+ * lets the RM pick one (recommended by default), edit the outreach note, and
+ * approve — which writes an rm_action (the closed-loop Act step) and fires
+ * dataMutated so the queue + KPIs refresh.
  */
-import { useEffect, useState } from 'react';
-import { AlertTriangle, CheckCircle2, XCircle } from 'lucide-react';
-import { decideReturn } from '@/lib/returns';
-import type { Decision, ReturnDetail } from '@/shared/types';
+import { useEffect, useMemo, useState } from 'react';
+import { CheckCircle2 } from 'lucide-react';
+import type { CustomerDetailBundle } from '@/lib/relationships';
+import { createRelationshipAction } from '@/lib/relationships';
+import { dataMutated } from '@/lib/events';
+import { ActionTypeBadge, usd } from '@/shared/badges';
+import type { ActionType, ActionRankingEntry } from '@/shared/types';
 
-export function ReturnTab({
-  detail,
+const ACTION_LABEL: Record<ActionType, string> = {
+  retention_offer: 'Retention offer',
+  cross_sell: 'Cross-sell',
+  rm_outreach: 'RM outreach',
+};
+
+function draftNote(
+  actionType: ActionType,
+  bundle: CustomerDetailBundle,
+  entry?: ActionRankingEntry,
+): string {
+  const rate = entry?.rateApy ?? bundle.nba?.recommendedRateApy;
+  const product = entry?.offeredProductId ?? bundle.nba?.recommendedOfferProductId;
+  switch (actionType) {
+    case 'retention_offer':
+      return `Reached out to offer a competitive renewal${rate ? ` at ${rate}% APY` : ''}${product ? ` on ${product}` : ''} ahead of maturity. Emphasized the long-standing relationship and that no action is needed to keep the balance at Meridian.`;
+    case 'cross_sell':
+      return `Introduced ${product ?? 'a product the customer qualifies for'} as a fit for their profile and goals. Framed as a value-add on top of the existing relationship.`;
+    case 'rm_outreach':
+      return `Scheduled a relationship-manager call to review the customer's goals and address any concerns before the upcoming maturity.`;
+  }
+}
+
+export function NextBestActionTab({
+  bundle,
   onMutated,
 }: {
-  detail: ReturnDetail;
+  bundle: CustomerDetailBundle;
   onMutated: () => void;
 }) {
-  const [notes, setNotes] = useState('');
-  const [pending, setPending] = useState<Decision | null>(null);
+  const nba = bundle.nba;
+  const ranking: ActionRankingEntry[] = useMemo(
+    () => nba?.actionRanking ?? [],
+    [nba],
+  );
+  const [selected, setSelected] = useState<ActionType>(
+    nba?.recommendedAction ?? 'retention_offer',
+  );
+  const [note, setNote] = useState('');
+  const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Final-state rows have action buttons disabled by default to prevent
-  // an accidental approved → rejected flip. Operator can opt in to an
-  // override (rare but real — e.g. CS reopens a refund).
-  const [overrideFinal, setOverrideFinal] = useState(false);
-  // Reset override + notes when the drawer switches rows so opening
-  // another already-decided return doesn't inherit the previous one's
-  // override flag or notes draft.
-  useEffect(() => {
-    setOverrideFinal(false);
-    setNotes('');
-    setError(null);
-  }, [detail.return_id]);
+  const [done, setDone] = useState(false);
 
-  async function decide(d: Decision) {
-    setPending(d);
+  useEffect(() => {
+    const rec = nba?.recommendedAction ?? 'retention_offer';
+    setSelected(rec);
+    setDone(false);
+    setError(null);
+    setNote(draftNote(rec, bundle, ranking.find((r) => r.actionType === rec)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bundle.customerId]);
+
+  function pick(a: ActionType) {
+    setSelected(a);
+    setNote(draftNote(a, bundle, ranking.find((r) => r.actionType === a)));
+  }
+
+  async function approve() {
+    setPending(true);
     setError(null);
     try {
-      await decideReturn(detail.return_id, d, notes || undefined);
+      const entry = ranking.find((r) => r.actionType === selected);
+      await createRelationshipAction(bundle.customerId, {
+        actionType: selected,
+        offeredProductId: entry?.offeredProductId ?? nba?.recommendedOfferProductId ?? null,
+        rateApy: entry?.rateApy ?? nba?.recommendedRateApy ?? null,
+        draftedNote: note || null,
+        predictedRetainedUsd: entry?.predictedRetainedUsd ?? nba?.predictedRetainedUsd ?? null,
+      });
+      setDone(true);
+      dataMutated.emit();
       onMutated();
     } catch (e) {
       setError((e as Error).message);
     } finally {
-      setPending(null);
+      setPending(false);
     }
   }
 
-  const isFinal = detail.status !== 'pending';
-  const actionsLocked = isFinal && !overrideFinal;
+  if (!nba && ranking.length === 0) {
+    return (
+      <div className="text-sm text-muted-foreground max-w-md">
+        No model recommendation for this customer yet. Once
+        gold_nba_recommendations is populated, the ranked next best actions
+        appear here.
+      </div>
+    );
+  }
+
+  // The ranked options: prefer the model ranking; else synthesize from the
+  // single recommendation so the RM can still act.
+  const options: ActionRankingEntry[] =
+    ranking.length > 0
+      ? ranking
+      : nba
+        ? [
+            {
+              actionType: nba.recommendedAction,
+              predictedRetainedUsd: nba.predictedRetainedUsd,
+              predictedNetValueUsd: nba.predictedNetValueUsd,
+              offeredProductId: nba.recommendedOfferProductId ?? undefined,
+              rateApy: nba.recommendedRateApy ?? undefined,
+            },
+          ]
+        : [];
 
   return (
     <div className="space-y-6 max-w-2xl">
-      {/* Phone: 2-up grid so short fields pair up (Return date / Order date,
-          Order total / Region) — saves vertical space so the drawer fits
-          without scroll. Reason spans both columns (long text).
-          sm+: 1 column of full-width rows; DetailRow renders its own
-          internal label/value split. */}
-      <dl className="grid grid-cols-2 sm:grid-cols-1 gap-x-4 gap-y-3 sm:gap-y-4 text-sm">
-        <DetailRow
-          label="Reason"
-          value={detail.return_reason_text ?? detail.return_reason ?? '—'}
-          full
-        />
-        <DetailRow
-          label="Refund"
-          value={`$${Number(detail.refund_amount_usd).toLocaleString()}`}
-        />
-        <DetailRow label="Return date" value={detail.return_date ?? '—'} />
-        <DetailRow label="Order date" value={detail.order_date ?? '—'} />
-        <DetailRow
-          label="Order total"
-          value={
-            detail.order_total_usd
-              ? `$${Number(detail.order_total_usd).toLocaleString()}`
-              : '—'
-          }
-        />
-        <DetailRow label="Region" value={detail.region ?? '—'} />
-      </dl>
-
-      {isFinal && (
-        <div className="rounded-md border border-border bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
-          <div className="mb-1.5">
-            This return has been <strong>{detail.status}</strong>. The action
-            buttons are locked to prevent an accidental flip.
-          </div>
-          <label className="inline-flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={overrideFinal}
-              onChange={(e) => setOverrideFinal(e.target.checked)}
-              className="size-3.5"
-            />
-            <span>Override — let me decide again</span>
-          </label>
+      <div className="space-y-2">
+        <div className="text-xs uppercase tracking-[0.15em] text-muted-foreground">
+          Model-ranked actions
         </div>
-      )}
+        {options.map((o) => {
+          const active = o.actionType === selected;
+          const recommended = o.actionType === nba?.recommendedAction;
+          return (
+            <button
+              key={o.actionType}
+              onClick={() => pick(o.actionType)}
+              className={`w-full text-left rounded-xl border px-4 py-3 transition-colors ${
+                active ? 'border-foreground/40 bg-muted/50' : 'border-border hover:border-foreground/20'
+              }`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <ActionTypeBadge action={o.actionType} />
+                  {recommended && (
+                    <span className="text-[10px] uppercase tracking-wider text-primary font-semibold">
+                      Recommended
+                    </span>
+                  )}
+                </div>
+                <div className="text-sm font-mono text-foreground">
+                  {o.predictedRetainedUsd != null ? `${usd(o.predictedRetainedUsd)} retained` : '—'}
+                </div>
+              </div>
+              <div className="mt-1 text-xs text-muted-foreground flex gap-3 flex-wrap">
+                {o.offeredProductId && <span>Product {o.offeredProductId}</span>}
+                {o.rateApy != null && <span>{o.rateApy}% APY</span>}
+                {o.predictedNetValueUsd != null && (
+                  <span>Net {usd(o.predictedNetValueUsd)}</span>
+                )}
+              </div>
+            </button>
+          );
+        })}
+      </div>
 
-      <div className="space-y-3">
+      <div className="space-y-2">
         <label className="block text-xs font-semibold uppercase tracking-[0.15em] text-muted-foreground">
-          Notes (optional)
+          Drafted outreach — {ACTION_LABEL[selected]}
         </label>
         <textarea
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          placeholder="Add context for QA or the customer-success team…"
-          rows={3}
-          className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-foreground/40"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          rows={5}
+          className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-foreground/40 leading-relaxed"
         />
         {error && <div className="text-xs text-destructive">{error}</div>}
-        <div className="flex gap-2">
-          <ActionButton
-            label="Approve"
-            icon={<CheckCircle2 className="size-4" />}
-            onClick={() => decide('approved')}
-            pending={pending === 'approved'}
-            disabled={actionsLocked}
-            variant="success"
-          />
-          <ActionButton
-            label="Reject"
-            icon={<XCircle className="size-4" />}
-            onClick={() => decide('rejected')}
-            pending={pending === 'rejected'}
-            disabled={actionsLocked}
-            variant="neutral"
-          />
-          <ActionButton
-            label="Escalate"
-            icon={<AlertTriangle className="size-4" />}
-            onClick={() => decide('escalated')}
-            pending={pending === 'escalated'}
-            disabled={actionsLocked}
-            variant="danger"
-          />
-        </div>
+        {done ? (
+          <div className="inline-flex items-center gap-1.5 text-sm text-[var(--success-subtle-foreground)]">
+            <CheckCircle2 className="size-4" /> Action recorded — the queue and KPIs will refresh.
+          </div>
+        ) : (
+          <button
+            onClick={approve}
+            disabled={pending}
+            className="inline-flex items-center justify-center gap-1.5 rounded-md px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 bg-success text-success-foreground hover:opacity-90"
+          >
+            <CheckCircle2 className="size-4" />
+            {pending ? 'Recording…' : 'Approve & record action'}
+          </button>
+        )}
       </div>
     </div>
-  );
-}
-
-function DetailRow({
-  label,
-  value,
-  full,
-}: {
-  label: string;
-  value: React.ReactNode;
-  /** When true, the row spans both columns on phone (used for long Reason text). */
-  full?: boolean;
-}) {
-  // Layout:
-  // - Phone (parent grid-cols-2): each cell = one field with label above value.
-  //   `full` cells span both columns (Reason text).
-  // - sm+ (parent grid-cols-1): each cell becomes a sub-grid with label
-  //   taking 1/3 width and value 2/3 — the classic side-by-side layout.
-  return (
-    <div
-      className={`flex flex-col sm:grid sm:grid-cols-3 ${
-        full ? 'col-span-2 sm:col-span-1' : ''
-      }`}
-    >
-      <dt className="text-xs uppercase tracking-[0.15em] text-muted-foreground pt-0.5">
-        {label}
-      </dt>
-      <dd className="sm:col-span-2">{value}</dd>
-    </div>
-  );
-}
-
-function ActionButton({
-  label,
-  icon,
-  onClick,
-  pending,
-  disabled = false,
-  variant,
-}: {
-  label: string;
-  icon: React.ReactNode;
-  onClick: () => void;
-  pending: boolean;
-  disabled?: boolean;
-  variant: 'success' | 'neutral' | 'danger';
-}) {
-  const cls =
-    variant === 'success'
-      ? 'bg-success text-success-foreground hover:opacity-90'
-      : variant === 'danger'
-        ? 'bg-warning text-warning-foreground hover:opacity-90'
-        : 'bg-muted text-foreground hover:bg-muted/70';
-  return (
-    <button
-      onClick={onClick}
-      disabled={pending || disabled}
-      className={`inline-flex items-center justify-center gap-1.5 rounded-md px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${cls}`}
-    >
-      {icon}
-      {pending ? '…' : label}
-    </button>
   );
 }

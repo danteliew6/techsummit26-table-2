@@ -77,7 +77,7 @@ import { ensureMlflowExperiment } from './lib/mlflow.js';
 
 import { registerConfigRoutes } from './routes/config.js';
 import { registerChatRoutes } from './routes/chat.js';
-// import { registerReturnsRoutes } from './routes/returns.js';  // TODO: implement for Meridian
+import { registerRelationshipRoutes } from './routes/relationships.js';
 import { registerActivityRoutes } from './routes/activity.js';
 import { registerAdminRoutes } from './routes/admin.js';
 import { registerChartRoutes } from './routes/charts.js';
@@ -489,7 +489,7 @@ await createApp({
       agentModel: appConfig.agentModel,
     },
   });
-  // registerReturnsRoutes(app, { db });  // TODO: implement for Meridian
+  registerRelationshipRoutes(app, { db });
   registerActivityRoutes(app, { db });
   registerAdminRoutes(app, { db, data: appConfig.data });
 
@@ -594,11 +594,28 @@ const mlflowIdPromise = (async () => {
 // what the /api gate middleware awaits.
 migrationsReady = (async () => {
   try {
-    await runMigrations(db);
-    console.log(`[boot +${ms()}] Migrations up to date`);
-    if (appConfig.data) {
+    // The Lakebase schema here is EXTERNALLY provisioned: app.* are views over
+    // UC synced tables plus the writable app.rm_actions, all created and owned
+    // outside this app. The template's Drizzle migrations (which CREATE the
+    // app.* tables) and the Delta→Lakebase boot sync therefore conflict with
+    // the managed objects (they hit "permission denied for schema drizzle" and
+    // try to write over the views). Default both OFF; opt in only when this
+    // app owns its schema (e.g. a fresh template deploy) via env flags.
+    if (process.env.RUN_DB_MIGRATIONS === 'true') {
+      await runMigrations(db);
+      console.log(`[boot +${ms()}] Migrations up to date`);
+    } else {
+      console.log(
+        `[boot +${ms()}] Skipping Drizzle migrations (RUN_DB_MIGRATIONS!=true) — schema is externally managed`,
+      );
+    }
+    if (appConfig.data && process.env.RUN_DELTA_SYNC === 'true') {
       await syncFromDelta(db, appConfig.data);
       console.log(`[boot +${ms()}] Delta sync done`);
+    } else if (appConfig.data) {
+      console.log(
+        `[boot +${ms()}] Skipping Delta→Lakebase sync (RUN_DELTA_SYNC!=true) — data served from UC synced tables`,
+      );
     }
     migrationsDone = true;
   } catch (e) {

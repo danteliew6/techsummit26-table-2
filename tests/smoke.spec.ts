@@ -45,19 +45,16 @@ let consoleErrors: string[] = [];
 let pageErrors: string[] = [];
 let failedRequests: string[] = [];
 
-test('smoke test - app loads and displays home page', async ({ page }) => {
-  await page.goto('/');
+test('smoke test - book of business page loads', async ({ page }) => {
+  await page.goto('/operations');
 
-  await expect(page.getByRole('heading', { name: APP_CONFIG.name })).toBeVisible();
+  // Static heading rendered regardless of data-fetch state.
   await expect(
-    page.getByRole('heading', { name: 'Welcome to your Databricks App' }),
+    page.getByRole('heading', { name: 'Work the at-risk book.' }),
   ).toBeVisible();
-  await expect(page.getByText('Getting Started')).toBeVisible();
-
-  await expect(page.getByRole('link', { name: 'Home' })).toBeVisible();
-  for (const [, plugin] of enabledPages) {
-    await expect(page.getByRole('link', { name: plugin.navLabel })).toBeVisible();
-  }
+  await expect(
+    page.getByText('Relationship desk — book of business'),
+  ).toBeVisible();
 });
 
 for (const [name, plugin] of enabledPages) {

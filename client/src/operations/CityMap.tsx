@@ -1,80 +1,48 @@
 /**
- * "Where the affected customers live" — bubble map.
+ * "Where the at-risk customers are" — bubble map for the Book of Business.
  *
- * Real world map (OSM/CARTO Positron raster tiles via react-leaflet) with
- * one CircleMarker per (city, country). Radius = sqrt-scaled customer
- * count. When the agent's bulk write fires `dataMutated`, every bucket
- * is refetched and the bubbles whose `total` changed get a brief stroke-
- * thickening "pulse" so the eye lands on what moved.
- *
- * Implementation notes (Leaflet has sharp edges):
- *   - radius is a top-level prop → react-leaflet calls setRadius() on diff.
- *   - pathOptions go through setStyle() — color, fillColor, weight all work.
- *   - className on pathOptions only applies at layer-create time (Leaflet's
- *     setStyle does NOT touch className), so we DON'T use CSS keyframes
- *     for the pulse — we vary `weight` (stroke width) for 1s instead.
- *   - FitBounds only re-fits when the set of (city,country) KEYS changes,
- *     not on count-only updates — otherwise the map wobbles every refetch.
- *   - Leaflet CSS is imported in client/src/index.css (not here) so tile
- *     sizing is correct on first paint, including HMR.
+ * One CircleMarker per at-risk customer that has lat/lng, colored by risk
+ * band, radius sqrt-scaled by balance-at-risk. Data comes in via props
+ * (the parent already fetched the queue) — no separate fetch. Leaflet CSS
+ * is imported in client/src/index.css.
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Globe2, RefreshCw } from 'lucide-react';
-import {
-  CircleMarker,
-  MapContainer,
-  TileLayer,
-  Tooltip,
-  useMap,
-} from 'react-leaflet';
-import { fetchCityBreakdown } from '@/lib/returns';
-import { dataMutated } from '@/lib/events';
-import type { CityBucket, ReturnStatus } from '@/shared/types';
+import { useEffect, useRef } from 'react';
+import { Globe2 } from 'lucide-react';
+import { CircleMarker, MapContainer, TileLayer, Tooltip, useMap } from 'react-leaflet';
+import { usd } from '@/shared/badges';
+import type { CustomerPositionRow, RiskBand } from '@/shared/types';
 
-type Props = {
-  status: ReturnStatus | 'all';
-  lot: string;
+const BAND_COLOR: Record<RiskBand, string> = {
+  critical: '#dc2626',
+  elevated: '#d97706',
+  watch: '#64748b',
+  healthy: '#16a34a',
 };
-
-const PRIMARY = '#1e2659'; // matches --primary; SVG fill won't take var(...)
 const RADIUS_MIN = 5;
-const RADIUS_MAX = 32;
-const RADIUS_SCALE = 2.6;
-const PULSE_MS = 1100;
-const PULSE_WEIGHT = 4;
-const REST_WEIGHT = 1.5;
+const RADIUS_MAX = 30;
 
-function radiusFor(count: number): number {
-  return Math.max(
-    RADIUS_MIN,
-    Math.min(RADIUS_MAX, Math.sqrt(Math.max(1, count)) * RADIUS_SCALE),
-  );
+function radiusFor(balanceAtRisk: number, max: number): number {
+  if (max <= 0) return RADIUS_MIN;
+  const frac = Math.sqrt(Math.max(0, balanceAtRisk) / max);
+  return RADIUS_MIN + frac * (RADIUS_MAX - RADIUS_MIN);
 }
 
-// Re-fit only when the SET of city keys changes (lot changed, region
-// filter narrowed, etc). Count-only changes (the agent flipping rows)
-// must NOT pan the map.
-function FitBoundsOnSetChange({ cities }: { cities: CityBucket[] }) {
+function FitBounds({ points }: { points: CustomerPositionRow[] }) {
   const map = useMap();
   const lastKey = useRef<string>('');
-
   useEffect(() => {
-    if (cities.length === 0) return;
-    const key = cities
-      .map((c) => `${c.country}:${c.city}`)
-      .sort()
-      .join('|');
+    if (points.length === 0) return;
+    const lats = points.map((c) => c.customerLat as number);
+    const lngs = points.map((c) => c.customerLng as number);
+    const key = `${points.length}:${Math.min(...lats).toFixed(1)}:${Math.max(...lats).toFixed(1)}`;
     if (key === lastKey.current) return;
     lastKey.current = key;
-
-    const lats = cities.map((c) => c.lat);
-    const lngs = cities.map((c) => c.lng);
     const minLat = Math.min(...lats);
     const maxLat = Math.max(...lats);
     const minLng = Math.min(...lngs);
     const maxLng = Math.max(...lngs);
     if (Math.abs(maxLat - minLat) < 0.5 && Math.abs(maxLng - minLng) < 0.5) {
-      map.setView([cities[0].lat, cities[0].lng], 6, { animate: true });
+      map.setView([lats[0], lngs[0]], 6, { animate: true });
       return;
     }
     map.fitBounds(
@@ -84,81 +52,39 @@ function FitBoundsOnSetChange({ cities }: { cities: CityBucket[] }) {
       ],
       { padding: [40, 40], animate: true },
     );
-  }, [cities, map]);
+  }, [points, map]);
   return null;
 }
 
-export function CityMap({ status, lot }: Props) {
-  const [cities, setCities] = useState<CityBucket[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    function reload() {
-      fetchCityBreakdown({
-        status: status === 'all' ? undefined : status,
-        lot: lot || undefined,
-      })
-        .then((data) => {
-          if (cancelled) return;
-          setCities(data);
-          setError(null);
-        })
-        .catch((e) => {
-          if (cancelled) return;
-          setError((e as Error).message);
-        });
-    }
-    reload();
-    const unsub = dataMutated.subscribe(reload);
-    return () => {
-      cancelled = true;
-      unsub();
-    };
-  }, [status, lot]);
-
-  if (error) {
-    return (
-      <div className="rounded-xl border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-        Couldn't load the map: {error}
-      </div>
-    );
-  }
-
-  if (cities === null) {
-    return (
-      <div className="rounded-xl border border-border bg-card h-[280px] sm:h-[340px] flex items-center justify-center text-sm text-muted-foreground gap-2">
-        <RefreshCw className="size-3.5 animate-spin" />
-        Loading map…
-      </div>
-    );
-  }
-
-  const totalCustomers = cities.reduce((a, c) => a + c.total, 0);
+export function CityMap({ customers }: { customers: CustomerPositionRow[] }) {
+  const points = customers.filter(
+    (c) => c.customerLat != null && c.customerLng != null,
+  );
+  const maxBalance = points.reduce(
+    (m, c) => Math.max(m, c.balanceAtRiskUsd ?? 0),
+    0,
+  );
 
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
       <div className="px-4 py-3 border-b border-border flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <Globe2 className="size-4 text-muted-foreground shrink-0" />
-          <h3 className="text-sm font-semibold truncate">
-            Affected customers by city
-          </h3>
+          <h3 className="text-sm font-semibold truncate">At-risk customers by location</h3>
         </div>
         <div className="text-xs text-muted-foreground shrink-0">
-          {cities.length} {cities.length === 1 ? 'city' : 'cities'} ·{' '}
-          {totalCustomers}
+          {points.length} plotted
         </div>
       </div>
       <div className="h-[280px] sm:h-[340px] relative">
-        {cities.length === 0 ? (
+        {points.length === 0 ? (
           <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
-            No affected customers in the current scope.
+            No geocoded at-risk customers in the current scope.
           </div>
         ) : (
           <MapContainer
-            center={[30, 10]}
-            zoom={2}
+            center={[39, -98]}
+            zoom={4}
             minZoom={2}
             scrollWheelZoom={false}
             worldCopyJump
@@ -171,73 +97,29 @@ export function CityMap({ status, lot }: Props) {
               subdomains={['a', 'b', 'c', 'd']}
               maxZoom={19}
             />
-            <FitBoundsOnSetChange cities={cities} />
-            {cities.map((c) => (
-              <CityBubble key={`${c.country}:${c.city}`} city={c} />
-            ))}
+            <FitBounds points={points} />
+            {points.map((c) => {
+              const color = BAND_COLOR[c.riskBand];
+              return (
+                <CircleMarker
+                  key={c.customerId}
+                  center={[c.customerLat as number, c.customerLng as number]}
+                  radius={radiusFor(c.balanceAtRiskUsd ?? 0, maxBalance)}
+                  pathOptions={{ color, fillColor: color, fillOpacity: 0.55, weight: 1.5 }}
+                >
+                  <Tooltip direction="top" offset={[0, -4]} opacity={1}>
+                    <div className="text-xs">
+                      <div className="font-semibold font-mono">{c.customerId}</div>
+                      <div>{c.homeMetro ?? '—'} · {c.riskBand}</div>
+                      <div>{usd(c.balanceAtRiskUsd)} at risk</div>
+                    </div>
+                  </Tooltip>
+                </CircleMarker>
+              );
+            })}
           </MapContainer>
         )}
       </div>
     </div>
-  );
-}
-
-function CityBubble({ city }: { city: CityBucket }) {
-  // Track whether `city.total` changed between renders to decide if we
-  // should pulse. Plain ref + state (no shared hook — see file header).
-  const prevTotal = useRef<number | null>(null);
-  const [pulsing, setPulsing] = useState(false);
-
-  useEffect(() => {
-    if (prevTotal.current === null) {
-      prevTotal.current = city.total;
-      return;
-    }
-    if (prevTotal.current === city.total) return;
-    prevTotal.current = city.total;
-    setPulsing(true);
-    const t = setTimeout(() => setPulsing(false), PULSE_MS);
-    return () => clearTimeout(t);
-  }, [city.total]);
-
-  // pathOptions identity must change for react-leaflet to call setStyle().
-  // useMemo on (pulsing) — fresh object only when pulse state flips.
-  const pathOptions = useMemo(
-    () => ({
-      color: PRIMARY,
-      fillColor: PRIMARY,
-      fillOpacity: pulsing ? 0.75 : 0.55,
-      weight: pulsing ? PULSE_WEIGHT : REST_WEIGHT,
-    }),
-    [pulsing],
-  );
-
-  const premiumPct =
-    city.total > 0 ? Math.round((city.premium / city.total) * 100) : 0;
-
-  return (
-    <CircleMarker
-      center={[city.lat, city.lng]}
-      radius={radiusFor(city.total)}
-      pathOptions={pathOptions}
-    >
-      <Tooltip direction="top" offset={[0, -4]} opacity={1}>
-        <div className="text-xs">
-          <div className="font-semibold">
-            {city.city}
-            <span className="text-muted-foreground"> · {city.country}</span>
-          </div>
-          <div>{city.total} affected customers</div>
-          <div>{premiumPct}% premium</div>
-          <div>
-            $
-            {city.refund_usd.toLocaleString(undefined, {
-              maximumFractionDigits: 0,
-            })}{' '}
-            refund
-          </div>
-        </div>
-      </Tooltip>
-    </CircleMarker>
   );
 }
