@@ -1,0 +1,7 @@
+Lakebase Search (retrieval never leaves the customer's account) over the product
+catalog. Natural-language query:
+
+  "wealth advisory account for an affluent long-tenure customer"
+
+SQL executed (BM25 full-text over meridian.products.description, backed by
+idx_products_desc_bm25 / GIN idx_products_desc_fts). Save output as search_result.json.

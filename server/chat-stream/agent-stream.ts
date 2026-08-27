@@ -53,9 +53,10 @@ export async function streamAgentTurn(args: {
   req: Request;
   res: Response;
   userEmail: string;
-  /** MAS endpoint name. Replace with `genieSpaceId` if your demo uses
-   * Genie — see relationshipdesk.ts AgentContext for the matching change. */
+  /** MAS endpoint name — `ask_data` uses MAS only if set. */
   masEndpointName: string;
+  /** Genie space id — `ask_data` uses this Genie space (Meridian demo). */
+  genieSpaceId: string;
   databricksHost: string;
   model: string;
   messages: Msg[];
@@ -117,6 +118,7 @@ export async function streamAgentTurn(args: {
       userEmail: args.userEmail,
       req: args.req,
       masEndpointName: args.masEndpointName,
+      genieSpaceId: args.genieSpaceId,
       databricksHost: args.databricksHost,
       model: args.model,
       modelError,

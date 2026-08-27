@@ -80,6 +80,7 @@ function normalizeActionType(raw: string): ActionType {
 // If your demo has BOTH, register both tools and tell the model in the
 // agent instructions when to prefer each.
 import { askMasTool } from './tools/mas.js';
+import { askGenieTool } from './tools/genie.js';
 export type { ToolProgressEvent } from './tools/types.js';
 
 /** Captured detail of the last failing call to the model serving endpoint.
@@ -101,11 +102,13 @@ export type AgentContext = {
   userEmail: string;
   req: Request;
   /** MAS serving-endpoint name the `ask_data` tool talks to. Set in
-   * `config/app.json` as `masEndpointName`. The template demo uses MAS;
-   * if your demo uses Genie instead, replace this field with
-   * `genieSpaceId: string` and swap `askMasTool` → `askGenieTool` in
-   * makeTools below. See server/agent/tools/{mas,genie}.ts. */
+   * `config/app.json` as `masEndpointName`. Empty for this Meridian demo,
+   * which uses Genie (`genieSpaceId`) for `ask_data`. */
   masEndpointName: string;
+  /** AI/BI Genie space id the `ask_data` tool talks to. Set in
+   * `config/app.json` as `genieSpaceId` (env GENIE_SPACE_ID). The Meridian
+   * demo uses the "Meridian Customer Retention" Genie space. */
+  genieSpaceId: string;
   databricksHost: string;
   model: string;
   /** Called by long-running tools to surface progress to the UI. */
@@ -330,7 +333,12 @@ function makeTools(ctx: AgentContext) {
   // the optional data-backend tool can coexist — otherwise TS infers a narrow
   // union from the literal array and rejects the push below.
   const tools: Tool[] = [findAtriskCustomer, rankNextBestActions, searchProducts, executeNbaAction];
-  if (ctx.masEndpointName) {
+  // Data-backend `ask_data` tool. This Meridian demo uses the "Meridian
+  // Customer Retention" Genie space; register the MAS variant only if a MAS
+  // endpoint is configured instead.
+  if (ctx.genieSpaceId) {
+    tools.push(askGenieTool(ctx, ctx.genieSpaceId));
+  } else if (ctx.masEndpointName) {
     tools.push(askMasTool(ctx, ctx.masEndpointName));
   }
   return tools;
@@ -380,9 +388,15 @@ export async function configureAgentsSdk(ctx: AgentContext): Promise<void> {
   //
   // Remove this wrapper once Databricks lifts the 64-char limit.
   // ──────────────────────────────────────────────────────────────────
+  // Route the agent LLM through the Unity AI Gateway MLflow Responses API
+  // (the single governed path for model calls; model ctx.model =
+  // table_2.exercise.meridian_app_llm). apiKey: MODEL_KEY (injected from a
+  // Databricks secret in prod) when set, else the app's OBO bearer
+  // (x-forwarded-access-token in prod, SDK chain in dev). Never hardcoded.
+  const apiKey = process.env.MODEL_KEY?.trim() || bearer;
   const client = new OpenAI({
-    apiKey: bearer,
-    baseURL: `${ctx.databricksHost}/serving-endpoints`,
+    apiKey,
+    baseURL: `${ctx.databricksHost}/ai-gateway/mlflow/v1`,
     maxRetries: 4,
     fetch: async (input, init) => {
       const headers = new Headers(init?.headers);
@@ -532,10 +546,11 @@ the next best action, draft the outreach, and execute after approval.
 TOOLS AT YOUR DISPOSAL
 ════════════════════════════════════════════════════════════
 
-ask_data(question) — delegates to the multi-agent supervisor. Use for any
-  WHY / WHAT HAPPENED / investigative question about customer data, attrition
-  patterns, market trends, deposit maturity schedules, or retention strategies.
-  Prefer ONE well-formed question over many small ones.
+ask_data(question) — asks the "Meridian Customer Retention" Genie space, which
+  runs governed SQL over the customer/attrition data and returns an answer. Use
+  for any WHY / WHAT HAPPENED / investigative question about customer data,
+  attrition patterns, deposit maturity schedules, or retention strategies.
+  Prefer ONE well-formed natural-language question over many small ones.
 
 find_atrisk_customer(customer_id) — identify an at-risk customer from Lakebase
   app.customer_position. Pass a customer_id to fetch that customer's details;
@@ -581,10 +596,10 @@ reading data or documents → call ask_data EXACTLY ONCE with a SHORT,
 targeted question. Then synthesize for the user. Do NOT use the action
 tools unless the user explicitly asks you to fix something.
 
-**Critical for latency**: ask_data calls out to a multi-agent supervisor
-that spawns sub-agents per sub-question. Broad questions ("analyze churn
-risk, maturing deposits, competitive rates, retention offers...") trigger
-4+ sub-agent hops and take >90s. Narrow questions finish in 20-40s.
+**Critical for latency**: ask_data runs a Genie query that generates and
+executes SQL. Broad, multi-part questions ("analyze churn risk, maturing
+deposits, competitive rates, retention offers...") are slow and ambiguous.
+Narrow, single-intent questions resolve fastest and most accurately.
 
 Prefer ONE of these shapes over the broad "tell me everything":
   - "Which customer has the highest attrition risk and the largest

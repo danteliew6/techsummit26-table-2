@@ -135,13 +135,19 @@ function toRmAction(r: RmActionSelect): RmActionRow {
 /** Book-of-business queue: at-risk customers, worst revenue-at-risk first. */
 export async function listAtRiskCustomers(
   db: AppDb,
-  limit = 200,
+  limit = 500,
 ): Promise<CustomerPositionRow[]> {
+  // Order by band severity first (critical→elevated→watch) THEN revenue within
+  // band, so every at-risk band is represented — a plain revenue DESC + small
+  // limit would fill entirely with 'critical' and hide elevated/watch.
   const rows = await db
     .select()
     .from(customerPosition)
     .where(inArray(customerPosition.riskBand, RISK_BANDS_AT_RISK))
-    .orderBy(desc(customerPosition.revenueAtRiskUsd))
+    .orderBy(
+      sql`CASE ${customerPosition.riskBand} WHEN 'critical' THEN 0 WHEN 'elevated' THEN 1 WHEN 'watch' THEN 2 ELSE 3 END`,
+      desc(customerPosition.revenueAtRiskUsd),
+    )
     .limit(limit);
   return rows.map(toCustomerPosition);
 }

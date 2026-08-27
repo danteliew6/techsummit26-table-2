@@ -474,18 +474,19 @@ await createApp({
     appConfig,
     getAgentExperimentId: () => agentExperimentId,
   });
-  // The template demo registers `ask_mas`. If your demo uses Genie
-  // instead, swap masEndpointName here for genieSpaceId and update
-  // relationshipdesk.ts AgentContext + makeTools() accordingly.
-  if (!appConfig.masEndpointName) {
+  // The agent's `ask_data` tool uses Genie (genieSpaceId) for this Meridian
+  // demo, or MAS (masEndpointName) if that's set instead. Warn only if neither
+  // is configured — then the agent has no data-backend tool.
+  if (!appConfig.genieSpaceId && !appConfig.masEndpointName) {
     console.warn(
-      '[boot] config.masEndpointName is empty — the agent won\'t have an ask_mas tool. Set it in config/app.json, or wire ask_genie if your demo uses Genie.',
+      '[boot] neither config.genieSpaceId nor config.masEndpointName is set — the agent will have no ask_data tool. Set GENIE_SPACE_ID (Genie) or masEndpointName (MAS) in config/app.json.',
     );
   }
   registerChatRoutes(app, {
     db,
     appConfig: {
       masEndpointName: appConfig.masEndpointName ?? '',
+      genieSpaceId: appConfig.genieSpaceId ?? '',
       agentModel: appConfig.agentModel,
     },
   });

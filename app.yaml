@@ -60,3 +60,8 @@ env:
   # Embedded AI/BI dashboard: "Meridian Customer Retention".
   - name: DASHBOARD_ID
     value: 01f1a1d03e611c92b3b17cb1b376796f
+  # AI Gateway model key (secret scope meridian/model_key). The agent's
+  # configureAgentsSdk uses this against ${DATABRICKS_HOST}/ai-gateway/mlflow/v1
+  # for model table_2.exercise.meridian_app_llm; falls back to the OBO token if unset.
+  - name: MODEL_KEY
+    valueFrom: model-key

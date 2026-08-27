@@ -20,7 +20,6 @@ import { CityMap } from './CityMap';
 import { KpiCards } from './KpiCards';
 import { ReturnsTable } from './ReturnsTable';
 import { CustomerDrawer } from './ReturnDrawer';
-import { IngestionFlow } from '@/architecture/IngestionFlow';
 
 type BandFilter = RiskBand | 'all';
 
@@ -38,7 +37,7 @@ export function OperationsView() {
     setLoading(true);
     try {
       const [list, m] = await Promise.all([
-        fetchAtRiskCustomers(200),
+        fetchAtRiskCustomers(500),
         fetchRiskMetrics(),
       ]);
       setRows(list);
@@ -111,7 +110,6 @@ export function OperationsView() {
               </button>
             )}
           </div>
-          <IngestionFlow />
         </div>
 
         <KpiCards metrics={metrics} />

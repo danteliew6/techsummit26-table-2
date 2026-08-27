@@ -39,6 +39,9 @@ import {
 } from 'lucide-react';
 import './PlatformView.css';
 import { PlatformDiagram } from '@/architecture/PlatformDiagram';
+import { IngestionFlow } from '@/architecture/IngestionFlow';
+import { AgentLoopFlow } from '@/architecture/AgentLoopFlow';
+import { RtPitch } from '@/architecture/RtPitch';
 
 // ===========================================================================
 // Types
@@ -1162,6 +1165,21 @@ export function PlatformView() {
     <div className="dx-platform">
       <div className="dx-platform-inner">
         <PlatformDiagram />
+
+        {/* Architecture narrative — consolidated here (the "See how it's
+            working" tab) instead of scattered across the data screens. */}
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '2.5rem',
+            margin: '2.5rem 0',
+          }}
+        >
+          <IngestionFlow />
+          <AgentLoopFlow />
+          <RtPitch warehouse={null} latencyMs={null} />
+        </div>
 
         <header className="dx-hero">
           <div className="dx-hero-eyebrow">Databricks Data + AI Platform</div>

@@ -31,7 +31,6 @@ import { fetchActivity } from '@/lib/relationships';
 import type { ActivityEvent } from '@/shared/types';
 import { dataMutated } from '@/lib/events';
 import { dockController } from '@/chat/dockController';
-import { AgentLoopFlow } from '@/architecture/AgentLoopFlow';
 
 // ---------------------------------------------------------------------------
 // Narrative — REPLACE for your demo.
@@ -137,8 +136,6 @@ export function HomeView() {
             A morning on the desk
           </div>
           <JourneyDiagram heroName={heroFirstName} script={config.assistantScript} />
-
-          <AgentLoopFlow />
         </section>
 
         {/* Starter prompts — each opens the floating assistant dock */}

@@ -18,9 +18,7 @@
  */
 import { useEffect, useState } from 'react';
 import { BarChart } from '@databricks/appkit-ui/react';
-import { fetchWarehouse, type Warehouse } from '@/lib/api';
 import { BRAND_PALETTE } from '@/lib/brand';
-import { RtPitch } from '@/architecture/RtPitch';
 
 const usd0 = (n: number) =>
   '$' + Number(n).toLocaleString(undefined, { maximumFractionDigits: 0 });
@@ -66,12 +64,6 @@ function useChartData<T = Record<string, unknown>>(key: string): {
 }
 
 export function AnalyticsView() {
-  const [warehouse, setWarehouse] = useState<Warehouse | null>(null);
-
-  useEffect(() => {
-    fetchWarehouse().then(setWarehouse).catch(console.error);
-  }, []);
-
   return (
     <div className="h-full overflow-y-auto">
       <div className="max-w-6xl mx-auto px-4 sm:px-8 py-6 sm:py-10 space-y-6 sm:space-y-10">
@@ -88,15 +80,6 @@ export function AnalyticsView() {
             to act; use this page to spot the pattern.
           </p>
         </div>
-
-        <RtPitch
-          warehouse={
-            warehouse?.name
-              ? { name: warehouse.name, state: warehouse.state ?? null }
-              : null
-          }
-          latencyMs={null}
-        />
 
         {/* Top row: revenue at risk by band + next-best-action mix. */}
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">

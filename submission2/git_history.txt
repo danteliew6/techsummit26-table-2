@@ -1,0 +1,8 @@
+* c5ff82d (HEAD -> main, origin/main, origin/HEAD) Overhaul to Meridian: real Analytics queries + embedded retention dashboard; purge returns/skincare copy
+* e0e56fe Implement Meridian bank workloads (tools + 4 screens); gate obsolete migrations/sync
+* afce9dc npmrc: ignore-scripts=true (container npm runs rolldown preinstall 'npx only-allow pnpm' which fails; npx absent → npm code 127)
+* 1be86c9 Fix build + deploy config for FEVM (summit-fevm / table_2.exercise)
+* c70f2fb Fix zod version: ^3.24.0 -> ^4.0.0
+* 416e03a Add package.json and fix app.yaml for container build
+* 9d4e613 Initial commit: Meridian Bank Databricks App
+* 7c46a3c Initial commit
