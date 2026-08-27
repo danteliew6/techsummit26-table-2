@@ -102,7 +102,9 @@ export function NextBestActionTab({
   const [selected, setSelected] = useState<ActionType>(
     nba?.recommendedAction ?? 'retention_offer',
   );
-  const [note, setNote] = useState('');
+  const [draft, setDraft] = useState('');
+  const [comment, setComment] = useState('');
+  const [sent, setSent] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<ActionType | null>(null);
@@ -124,18 +126,22 @@ export function NextBestActionTab({
     setSelected(rec);
     setDone(null);
     setError(null);
-    setNote(draftNote(rec, bundle, ranking.find((r) => r.actionType === rec)));
+    setDraft(draftNote(rec, bundle, ranking.find((r) => r.actionType === rec)));
+    setComment('');
+    setSent(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bundle.customerId]);
 
   function pick(a: ActionType) {
     if (done) return;
     setSelected(a);
-    setNote(draftNote(a, bundle, ranking.find((r) => r.actionType === a)));
+    setDraft(draftNote(a, bundle, ranking.find((r) => r.actionType === a)));
+    setSent(false);
   }
 
   function resetDraft() {
-    setNote(draftNote(selected, bundle, ranking.find((r) => r.actionType === selected)));
+    setDraft(draftNote(selected, bundle, ranking.find((r) => r.actionType === selected)));
+    setSent(false);
   }
 
   async function generateDraft() {
@@ -148,7 +154,8 @@ export function NextBestActionTab({
         offeredProductId: selectedProduct?.productId ?? entry?.offeredProductId ?? nba?.recommendedOfferProductId ?? null,
         rateApy: selectedProduct?.rateApy ?? (entry?.rateApy ?? nba?.recommendedRateApy ?? null),
       });
-      setNote(result.draft);
+      setDraft(result.draft);
+      setSent(false);
     } catch (e) {
       setDraftError((e as Error).message);
     } finally {
@@ -183,7 +190,7 @@ export function NextBestActionTab({
         actionType: selected,
         offeredProductId: selectedProduct?.productId ?? entry?.offeredProductId ?? nba?.recommendedOfferProductId ?? null,
         rateApy: selectedProduct?.rateApy ?? (entry?.rateApy ?? nba?.recommendedRateApy ?? null),
-        draftedNote: note || null,
+        draftedNote: comment || null,
         predictedRetainedUsd: entry?.predictedRetainedUsd ?? nba?.predictedRetainedUsd ?? null,
       });
       setDone(selected);
@@ -356,14 +363,14 @@ export function NextBestActionTab({
         })}
       </section>
 
-      {/* 4 — DRAFT & COMMENTS */}
+      {/* 4a — DRAFT OUTREACH */}
       <section className="space-y-2">
         <div className="flex items-center justify-between">
           <label
-            htmlFor="nba-note"
+            htmlFor="nba-draft"
             className="text-xs font-semibold uppercase tracking-[0.15em] text-muted-foreground"
           >
-            Comments
+            Draft outreach
           </label>
           {!done && (
             <div className="flex items-center gap-2">
@@ -497,15 +504,67 @@ export function NextBestActionTab({
         </div>
 
         <textarea
-          id="nba-note"
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
+          id="nba-draft"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
           disabled={!!done}
           rows={5}
           className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary/50 leading-relaxed disabled:opacity-70"
         />
+
+        {/* Send to customer button */}
+        {!done && (
+          <div className="flex items-center gap-3">
+            <button
+              onClick={async () => {
+                if (draft) {
+                  try {
+                    await navigator.clipboard.writeText(draft);
+                    setSent(true);
+                    setTimeout(() => setSent(false), 3000);
+                  } catch (e) {
+                    console.error('Failed to copy to clipboard:', e);
+                  }
+                }
+              }}
+              disabled={!draft}
+              className="inline-flex items-center justify-center gap-1.5 rounded-md px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 bg-primary text-primary-foreground hover:opacity-90"
+            >
+              {sent ? (
+                <>
+                  <CheckCircle2 className="size-4" />
+                  Sent ✓
+                </>
+              ) : (
+                'Send to customer'
+              )}
+            </button>
+            {sent && (
+              <span className="text-xs text-success">Outreach copied to clipboard</span>
+            )}
+          </div>
+        )}
+      </section>
+
+      {/* 4b — COMMENTS */}
+      <section className="space-y-2">
+        <label
+          htmlFor="nba-comment"
+          className="text-xs font-semibold uppercase tracking-[0.15em] text-muted-foreground"
+        >
+          Comments
+        </label>
+        <textarea
+          id="nba-comment"
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+          disabled={!!done}
+          placeholder="Log what you did — e.g. 'Called customer, offered CD renewal at 3.85%, awaiting response.'"
+          rows={4}
+          className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary/50 leading-relaxed disabled:opacity-70"
+        />
         <p className="text-[11px] text-muted-foreground">
-          Based on the selected option and the draft you configured — logged as a comment on the customer's record.
+          Your action log and notes for this customer — recorded on approval.
         </p>
       </section>
 
