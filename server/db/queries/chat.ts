@@ -27,7 +27,12 @@ export async function createConversation(
 ) {
   const rows = await db
     .insert(conversations)
-    .values({ userEmail, title })
+    .values({
+      userEmail,
+      title,
+      // Use SP-owned sequence in app_rt schema instead of default
+      id: sql`nextval('app_rt.conversations_id_seq')`,
+    })
     .returning();
   return rows[0];
 }
@@ -58,6 +63,8 @@ export async function getOrCreateDockConversation(
       userEmail,
       title: 'Assistant',
       kind: 'demo_dock',
+      // Use SP-owned sequence in app_rt schema instead of default
+      id: sql`nextval('app_rt.conversations_id_seq')`,
     })
     .returning();
   return rows[0];
@@ -118,12 +125,13 @@ export async function appendMessage(
     try {
       return await db.transaction(async (tx) => {
         const rows = await tx.execute(sql`
-          INSERT INTO app.messages (conversation_id, role, content, position, trace_id, thinking, error, canceled)
+          INSERT INTO app.messages (id, conversation_id, role, content, position, trace_id, thinking, error, canceled)
           SELECT
-            ${conversationId}::uuid,
+            nextval('app_rt.messages_id_seq'),
+            ${conversationId},
             ${role},
             ${content},
-            COALESCE((SELECT MAX(position) FROM app.messages WHERE conversation_id = ${conversationId}::uuid), -1) + 1,
+            COALESCE((SELECT MAX(position) FROM app.messages WHERE conversation_id = ${conversationId}), -1) + 1,
             ${traceId ?? null},
             ${thinkingJson}::jsonb,
             ${error ?? null},
@@ -189,6 +197,8 @@ export async function insertFeedback(
       rationale: args.rationale,
       traceId: args.traceId ?? null,
       mlflowAssessmentId: args.mlflowAssessmentId ?? null,
+      // Use SP-owned sequence in app_rt schema instead of default
+      id: sql`nextval('app_rt.feedback_id_seq')`,
     })
     .returning();
   return rows[0];
