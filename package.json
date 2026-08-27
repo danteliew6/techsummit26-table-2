@@ -20,7 +20,7 @@
     "openai": "^4.86.0",
     "drizzle-orm": "^0.39.0",
     "pg": "^8.13.0",
-    "zod": "^3.24.0",
+    "zod": "^4.0.0",
     "mlflow-tracing": "latest",
     "jsonc-parser": "^3.3.0",
     "dotenv": "^16.4.0",
