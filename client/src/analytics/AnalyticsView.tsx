@@ -359,7 +359,10 @@ function KpiStrip() {
     (s, r) => s + (r.predicted_retained_usd ?? 0),
     0,
   );
-  const coveragePct = totalRevenue > 0 ? (withRec?.revenue_at_risk_usd ?? 0) / totalRevenue : 0;
+  const recCoveragePct = totalRevenue > 0 ? (withRec?.revenue_at_risk_usd ?? 0) / totalRevenue : 0;
+  const totalCustomers = total?.customers ?? 0;
+  const actionedCustomers = actioned?.customers ?? 0;
+  const actionedPct = totalCustomers > 0 ? actionedCustomers / totalCustomers : 0;
 
   const cards: { label: string; value: string; sub: string; tone: string }[] = [
     {
@@ -381,10 +384,13 @@ function KpiStrip() {
       tone: 'text-foreground',
     },
     {
-      label: 'Book covered',
-      value: pct(coveragePct),
-      sub: `${(actioned?.customers ?? 0).toLocaleString()} actioned so far`,
-      tone: 'text-foreground',
+      label: 'Actioned so far',
+      value: `${actionedCustomers.toLocaleString()} of ${totalCustomers.toLocaleString()}`,
+      sub:
+        totalCustomers > 0
+          ? `${pct(actionedPct)} worked · ${pct(recCoveragePct)} have a recommendation`
+          : '—',
+      tone: 'text-warning',
     },
   ];
 

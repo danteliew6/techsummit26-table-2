@@ -243,6 +243,33 @@ export async function callMasEndpoint(
         }
       }
     }
+    // Final flush to handle any remaining incomplete UTF-8 sequences in the
+    // decoder's internal buffer. This is critical: if a multibyte UTF-8 char
+    // (e.g., a middot "·", bullet "•", or em-dash "—") is split such that
+    // the last chunk ends with an incomplete sequence, calling dec.decode()
+    // without arguments ensures the sequence is properly decoded or replaced
+    // with the U+FFFD replacement character, rather than being lost.
+    buf += dec.decode();
+    // Process any remaining data in buf (incomplete SSE line at stream end)
+    if (buf) {
+      const line = buf.split('\n').find((l) => l.startsWith('data: '));
+      if (line) {
+        const data = line.slice(6);
+        if (data && data !== '[DONE]') {
+          try {
+            const ev = JSON.parse(data);
+            if (
+              ev.type === 'response.output_text.delta' &&
+              typeof (ev as { delta?: string }).delta === 'string'
+            ) {
+              deltaBuf.push((ev as { delta: string }).delta);
+            }
+          } catch {
+            /* skip non-JSON event lines */
+          }
+        }
+      }
+    }
   } finally {
     try { reader.releaseLock(); } catch { /* already released */ }
   }
