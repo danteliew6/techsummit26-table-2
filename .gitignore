@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+
+# Build output (rebuilt via scripts/build-app.sh)
+dist/
+client/dist/
+
+# Generated Drizzle migrations
+drizzle/
+
+# Secrets & local env (never commit — carries profile + Lakebase config)
+.env
+.env.*.bak
+.env.launcher-bak
+*.bak
+
+# Misc
+.DS_Store
+npm-debug.log*

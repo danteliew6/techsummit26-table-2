@@ -44,3 +44,16 @@ env:
   # placeholder resolution.
   - name: WAREHOUSE_ID
     valueFrom: sql-warehouse
+
+  # ── Plain values (data location + ask_data backend) ──────────────────
+  # Injected here for the interactive scripts/deploy.sh path (finalize_app.sh
+  # only runs on the DAB/setup-job path). The Meridian gold data lives in
+  # table_2.exercise in this workspace, NOT the template default
+  # ai_demo_gen.meridian_bank; GENIE_SPACE_ID wires the agent's ask_data tool
+  # to the "Meridian Customer Retention" Genie space.
+  - name: DEMO_CATALOG
+    value: table_2
+  - name: DEMO_SCHEMA
+    value: exercise
+  - name: GENIE_SPACE_ID
+    value: 01f1a1ceebe21e4e94f04ab148801daa
