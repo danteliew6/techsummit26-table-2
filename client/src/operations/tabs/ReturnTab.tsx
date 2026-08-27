@@ -116,7 +116,7 @@ export function NextBestActionTab({
   const [productSearchQuery, setProductSearchQuery] = useState('');
   const [productSearchResults, setProductSearchResults] = useState<ProductRow[]>([]);
   const [productSearchLoading, setProductSearchLoading] = useState(false);
-  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<ProductRow | null>(null);
   const [productSearchError, setProductSearchError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -145,8 +145,8 @@ export function NextBestActionTab({
       const entry = ranking.find((r) => r.actionType === selected);
       const result = await generateDraftOutreach(bundle.customerId, {
         actionType: selected,
-        offeredProductId: selectedProductId ?? entry?.offeredProductId ?? nba?.recommendedOfferProductId ?? null,
-        rateApy: selectedProductId ? undefined : entry?.rateApy ?? nba?.recommendedRateApy ?? null,
+        offeredProductId: selectedProduct?.productId ?? entry?.offeredProductId ?? nba?.recommendedOfferProductId ?? null,
+        rateApy: selectedProduct?.rateApy ?? (entry?.rateApy ?? nba?.recommendedRateApy ?? null),
       });
       setNote(result.draft);
     } catch (e) {
@@ -170,7 +170,7 @@ export function NextBestActionTab({
   }
 
   function selectProduct(product: ProductRow) {
-    setSelectedProductId(product.productId);
+    setSelectedProduct(product);
     setProductSearchOpen(false);
   }
 
@@ -181,8 +181,8 @@ export function NextBestActionTab({
       const entry = ranking.find((r) => r.actionType === selected);
       await createRelationshipAction(bundle.customerId, {
         actionType: selected,
-        offeredProductId: entry?.offeredProductId ?? nba?.recommendedOfferProductId ?? null,
-        rateApy: entry?.rateApy ?? nba?.recommendedRateApy ?? null,
+        offeredProductId: selectedProduct?.productId ?? entry?.offeredProductId ?? nba?.recommendedOfferProductId ?? null,
+        rateApy: selectedProduct?.rateApy ?? (entry?.rateApy ?? nba?.recommendedRateApy ?? null),
         draftedNote: note || null,
         predictedRetainedUsd: entry?.predictedRetainedUsd ?? nba?.predictedRetainedUsd ?? null,
       });
@@ -357,16 +357,38 @@ export function NextBestActionTab({
           Find a product (optional)
         </div>
         <div className="rounded-lg border border-border bg-background p-3 space-y-2">
-          {selectedProductId ? (
-            // Selected product display
-            <div className="flex items-center justify-between p-2 rounded bg-primary/10 border border-primary/30">
-              <div className="text-sm font-medium">{selectedProductId}</div>
-              <button
-                onClick={() => setSelectedProductId(null)}
-                className="text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <XCircle className="size-4" />
-              </button>
+          {selectedProduct ? (
+            // Selected product — full detail card
+            <div className="rounded-md bg-primary/5 border border-primary/30 p-3 space-y-1.5">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold">{selectedProduct.productName}</div>
+                  <div className="text-[11px] font-mono text-muted-foreground">{selectedProduct.productId}</div>
+                </div>
+                <button
+                  onClick={() => setSelectedProduct(null)}
+                  aria-label="Clear selected product"
+                  className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                >
+                  <XCircle className="size-4" />
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs tabular-nums">
+                {selectedProduct.productType && (
+                  <span><span className="text-muted-foreground">Type </span>{selectedProduct.productType}</span>
+                )}
+                {selectedProduct.segment && (
+                  <span><span className="text-muted-foreground">Segment </span>{selectedProduct.segment}</span>
+                )}
+                <span><span className="text-muted-foreground">Rate </span>{selectedProduct.rateApy != null ? `${(selectedProduct.rateApy * 100).toFixed(2)}% APY` : 'TBD'}</span>
+                {selectedProduct.minBalanceUsd != null && (
+                  <span><span className="text-muted-foreground">Min </span>{usd(selectedProduct.minBalanceUsd)}</span>
+                )}
+              </div>
+              {selectedProduct.description && (
+                <p className="text-xs text-muted-foreground">{selectedProduct.description}</p>
+              )}
+              <p className="text-[11px] text-primary">Attached to this action — the logged offer and the generated draft will reference it.</p>
             </div>
           ) : (
             // Search box
@@ -397,7 +419,7 @@ export function NextBestActionTab({
           )}
 
           {/* Search results */}
-          {productSearchResults.length > 0 && !selectedProductId && (
+          {productSearchResults.length > 0 && !selectedProduct && (
             <div className="space-y-1 max-h-60 overflow-y-auto">
               {productSearchResults.map((p) => (
                 <button

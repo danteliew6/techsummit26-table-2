@@ -72,7 +72,10 @@ ${grounding}`;
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: config.model,
-      max_output_tokens: 400,
+      // High enough that the model's reasoning budget doesn't starve the message
+      // text (this model reasons before answering; at 400 the message truncated
+      // to empty → status "incomplete"). 1500 completes with margin (~550 used).
+      max_output_tokens: 1500,
       input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }] }],
     }),
   });
