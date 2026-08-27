@@ -1,21 +1,35 @@
 /**
- * Customer 360 — "Next best action" tab. Shows the model's ranked actions,
- * lets the RM pick one (recommended by default), edit the outreach note, and
- * approve — which writes an rm_action (the closed-loop Act step) and fires
- * dataMutated so the queue + KPIs refresh.
+ * Customer 360 — "Next best action" tab: the guided Act / approve surface.
+ *
+ * A single legible decision arc for the relationship manager:
+ *   1. SURFACE  — why act now (risk band, attrition, $ at risk, maturity)
+ *   2. PRESCRIBE — the recommended action as the hero, with its predicted impact
+ *   3. COMPARE  — the three model-ranked options, tradeoff visible, RM can re-pick
+ *   4. DRAFT    — the outreach note, prefilled + editable
+ *   5. ACT      — Approve & log (writes an rm_action) or Cancel; closed-loop
+ *                 refresh via dataMutated so the queue + KPIs update.
+ *
+ * Colour is semantic only (tokens): risk → --destructive, retained/value →
+ * --success, recommended accent → --primary, labels → --muted-foreground.
  */
-import { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2 } from 'lucide-react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { CheckCircle2, TriangleAlert, Sparkles, RotateCcw } from 'lucide-react';
 import type { CustomerDetailBundle } from '@/lib/relationships';
 import { createRelationshipAction } from '@/lib/relationships';
 import { dataMutated } from '@/lib/events';
-import { ActionTypeBadge, usd } from '@/shared/badges';
+import { ActionTypeBadge, RiskBandBadge, ActionStatusBadge, usd } from '@/shared/badges';
 import type { ActionType, ActionRankingEntry } from '@/shared/types';
 
 const ACTION_LABEL: Record<ActionType, string> = {
   retention_offer: 'Retention offer',
   cross_sell: 'Cross-sell',
   rm_outreach: 'RM outreach',
+};
+
+const ACTION_RATIONALE: Record<ActionType, string> = {
+  retention_offer: 'Match the competing rate before maturity to keep the balance.',
+  cross_sell: 'Deepen the relationship with a product they qualify for.',
+  rm_outreach: 'A personal call to understand goals and pre-empt attrition.',
 };
 
 function draftNote(
@@ -35,6 +49,35 @@ function draftNote(
   }
 }
 
+/** A compact labelled statistic cell. */
+function Stat({
+  label,
+  value,
+  tone,
+  sub,
+}: {
+  label: string;
+  value: ReactNode;
+  tone?: 'risk' | 'value' | 'default';
+  sub?: ReactNode;
+}) {
+  const color =
+    tone === 'risk'
+      ? 'text-destructive'
+      : tone === 'value'
+        ? 'text-success'
+        : 'text-foreground';
+  return (
+    <div className="space-y-0.5">
+      <div className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground">
+        {label}
+      </div>
+      <div className={`text-lg font-semibold tabular-nums ${color}`}>{value}</div>
+      {sub && <div className="text-xs text-muted-foreground">{sub}</div>}
+    </div>
+  );
+}
+
 export function NextBestActionTab({
   bundle,
   onMutated,
@@ -43,6 +86,9 @@ export function NextBestActionTab({
   onMutated: () => void;
 }) {
   const nba = bundle.nba;
+  const pos = bundle.position;
+  const open = bundle.openAtrisk;
+
   const ranking: ActionRankingEntry[] = useMemo(
     () => nba?.actionRanking ?? [],
     [nba],
@@ -53,20 +99,25 @@ export function NextBestActionTab({
   const [note, setNote] = useState('');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState(false);
+  const [done, setDone] = useState<ActionType | null>(null);
 
   useEffect(() => {
     const rec = nba?.recommendedAction ?? 'retention_offer';
     setSelected(rec);
-    setDone(false);
+    setDone(null);
     setError(null);
     setNote(draftNote(rec, bundle, ranking.find((r) => r.actionType === rec)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bundle.customerId]);
 
   function pick(a: ActionType) {
+    if (done) return;
     setSelected(a);
     setNote(draftNote(a, bundle, ranking.find((r) => r.actionType === a)));
+  }
+
+  function resetDraft() {
+    setNote(draftNote(selected, bundle, ranking.find((r) => r.actionType === selected)));
   }
 
   async function approve() {
@@ -81,7 +132,7 @@ export function NextBestActionTab({
         draftedNote: note || null,
         predictedRetainedUsd: entry?.predictedRetainedUsd ?? nba?.predictedRetainedUsd ?? null,
       });
-      setDone(true);
+      setDone(selected);
       dataMutated.emit();
       onMutated();
     } catch (e) {
@@ -91,18 +142,22 @@ export function NextBestActionTab({
     }
   }
 
+  // Empty state — no model recommendation yet.
   if (!nba && ranking.length === 0) {
     return (
-      <div className="text-sm text-muted-foreground max-w-md">
-        No model recommendation for this customer yet. Once
-        gold_nba_recommendations is populated, the ranked next best actions
-        appear here.
+      <div className="rounded-xl border border-dashed border-border px-5 py-8 text-center max-w-md mx-auto">
+        <Sparkles className="size-5 mx-auto text-muted-foreground" />
+        <div className="mt-2 text-sm font-medium">No recommendation yet</div>
+        <div className="mt-1 text-xs text-muted-foreground">
+          Once the model has scored this customer, the ranked next best actions
+          appear here for you to review and approve.
+        </div>
       </div>
     );
   }
 
-  // The ranked options: prefer the model ranking; else synthesize from the
-  // single recommendation so the RM can still act.
+  // The ranked options: prefer the model ranking; else synthesize the single
+  // recommendation so the RM can still act.
   const options: ActionRankingEntry[] =
     ranking.length > 0
       ? ranking
@@ -118,11 +173,87 @@ export function NextBestActionTab({
           ]
         : [];
 
+  const selectedEntry = options.find((o) => o.actionType === selected);
+  const maturityDays = open?.daysToMaturity ?? pos?.minDaysToMaturity ?? null;
+  const latestAction = bundle.actions?.[0] ?? null;
+
   return (
     <div className="space-y-6 max-w-2xl">
-      <div className="space-y-2">
-        <div className="text-xs uppercase tracking-[0.15em] text-muted-foreground">
-          Model-ranked actions
+      {/* 1 — SURFACE: why act now */}
+      <section className="rounded-xl border border-border bg-muted/30 px-5 py-4">
+        <div className="flex items-center gap-2 mb-3">
+          <TriangleAlert className="size-4 text-destructive" />
+          <span className="text-xs font-semibold uppercase tracking-[0.15em] text-muted-foreground">
+            Why act now
+          </span>
+          {pos && <RiskBandBadge band={pos.riskBand} />}
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          {pos && (
+            <Stat
+              label="Attrition risk"
+              tone="risk"
+              value={pos.attritionRiskScore.toFixed(2)}
+            />
+          )}
+          {pos && (
+            <Stat label="Revenue at risk" tone="risk" value={usd(pos.revenueAtRiskUsd)} sub="per year" />
+          )}
+          {pos && (
+            <Stat label="Balance at risk" value={usd(pos.balanceAtRiskUsd)} />
+          )}
+          <Stat
+            label="Maturity"
+            value={maturityDays != null ? `${maturityDays}d` : '—'}
+            sub={
+              open?.currentRateApy != null
+                ? `${open.currentRateApy}% APY${open.atriskProductId ? ` · ${open.atriskProductId}` : ''}`
+                : open?.atriskProductId ?? undefined
+            }
+          />
+        </div>
+      </section>
+
+      {/* 2 — PRESCRIBE: the recommended action, hero */}
+      {nba && (
+        <section className="rounded-xl border border-primary/40 bg-primary/5 px-5 py-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Sparkles className="size-4 text-primary" />
+            <span className="text-xs font-semibold uppercase tracking-[0.15em] text-primary">
+              Recommended next best action
+            </span>
+          </div>
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <ActionTypeBadge action={nba.recommendedAction} />
+                {nba.recommendedOfferProductId && (
+                  <span className="text-sm font-medium">
+                    {nba.recommendedOfferProductId}
+                    {nba.recommendedRateApy != null && ` · ${nba.recommendedRateApy}% APY`}
+                  </span>
+                )}
+              </div>
+              <div className="text-xs text-muted-foreground max-w-sm">
+                {ACTION_RATIONALE[nba.recommendedAction]}
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-2xl font-bold tabular-nums text-success">
+                {usd(nba.predictedRetainedUsd)}
+              </div>
+              <div className="text-[11px] text-muted-foreground">
+                predicted retained · net {usd(nba.predictedNetValueUsd)}
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* 3 — COMPARE: the ranked options */}
+      <section className="space-y-2">
+        <div className="text-xs font-semibold uppercase tracking-[0.15em] text-muted-foreground">
+          Compare options{done ? '' : ' — pick one to log'}
         </div>
         {options.map((o) => {
           const active = o.actionType === selected;
@@ -131,8 +262,12 @@ export function NextBestActionTab({
             <button
               key={o.actionType}
               onClick={() => pick(o.actionType)}
-              className={`w-full text-left rounded-xl border px-4 py-3 transition-colors ${
-                active ? 'border-foreground/40 bg-muted/50' : 'border-border hover:border-foreground/20'
+              disabled={!!done}
+              aria-pressed={active}
+              className={`w-full text-left rounded-xl border px-4 py-3 transition-colors disabled:cursor-default ${
+                active
+                  ? 'border-primary/50 bg-primary/5 ring-1 ring-primary/30'
+                  : 'border-border hover:border-foreground/20'
               }`}
             >
               <div className="flex items-center justify-between gap-2">
@@ -144,48 +279,107 @@ export function NextBestActionTab({
                     </span>
                   )}
                 </div>
-                <div className="text-sm font-mono text-foreground">
-                  {o.predictedRetainedUsd != null ? `${usd(o.predictedRetainedUsd)} retained` : '—'}
+                <div className="text-sm font-semibold tabular-nums text-success">
+                  {o.predictedRetainedUsd != null ? usd(o.predictedRetainedUsd) : '—'}
                 </div>
               </div>
-              <div className="mt-1 text-xs text-muted-foreground flex gap-3 flex-wrap">
-                {o.offeredProductId && <span>Product {o.offeredProductId}</span>}
-                {o.rateApy != null && <span>{o.rateApy}% APY</span>}
-                {o.predictedNetValueUsd != null && (
-                  <span>Net {usd(o.predictedNetValueUsd)}</span>
-                )}
+              <div className="mt-1 flex items-center justify-between gap-3">
+                <span className="text-xs text-muted-foreground">
+                  {o.offeredProductId ? `${o.offeredProductId}` : ACTION_LABEL[o.actionType]}
+                  {o.rateApy != null && ` · ${o.rateApy}% APY`}
+                </span>
+                <span className="text-[11px] text-muted-foreground tabular-nums">
+                  {o.predictedNetValueUsd != null ? `net ${usd(o.predictedNetValueUsd)}` : ''}
+                </span>
               </div>
             </button>
           );
         })}
-      </div>
+      </section>
 
-      <div className="space-y-2">
-        <label className="block text-xs font-semibold uppercase tracking-[0.15em] text-muted-foreground">
-          Drafted outreach — {ACTION_LABEL[selected]}
-        </label>
+      {/* 4 — DRAFT: the outreach note */}
+      <section className="space-y-2">
+        <div className="flex items-center justify-between">
+          <label
+            htmlFor="nba-note"
+            className="text-xs font-semibold uppercase tracking-[0.15em] text-muted-foreground"
+          >
+            Outreach note — {ACTION_LABEL[selected]}
+          </label>
+          {!done && (
+            <button
+              onClick={resetDraft}
+              className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <RotateCcw className="size-3" /> Reset draft
+            </button>
+          )}
+        </div>
         <textarea
+          id="nba-note"
           value={note}
           onChange={(e) => setNote(e.target.value)}
+          disabled={!!done}
           rows={5}
-          className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-foreground/40 leading-relaxed"
+          className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary/50 leading-relaxed disabled:opacity-70"
         />
-        {error && <div className="text-xs text-destructive">{error}</div>}
+        <p className="text-[11px] text-muted-foreground">
+          Review and edit before logging — this note is saved to the customer's
+          record as the outreach that was taken.
+        </p>
+      </section>
+
+      {/* 5 — ACT */}
+      <section className="space-y-3">
+        {error && (
+          <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+            <TriangleAlert className="size-3.5 mt-0.5 shrink-0" />
+            <span>Couldn't log the action: {error}. Try again.</span>
+          </div>
+        )}
         {done ? (
-          <div className="inline-flex items-center gap-1.5 text-sm text-[var(--success-subtle-foreground)]">
-            <CheckCircle2 className="size-4" /> Action recorded — the queue and KPIs will refresh.
+          <div className="rounded-xl border border-success/40 bg-success/5 px-5 py-4">
+            <div className="flex items-center gap-2 text-success">
+              <CheckCircle2 className="size-5" />
+              <span className="text-sm font-semibold">
+                {ACTION_LABEL[done]} logged
+              </span>
+              <ActionStatusBadge status="approved" />
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Recorded to the customer's record. The Book of Business queue and
+              the at-risk KPIs have been updated. See the Activity tab for the
+              audit trail.
+            </p>
           </div>
         ) : (
-          <button
-            onClick={approve}
-            disabled={pending}
-            className="inline-flex items-center justify-center gap-1.5 rounded-md px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 bg-success text-success-foreground hover:opacity-90"
-          >
-            <CheckCircle2 className="size-4" />
-            {pending ? 'Recording…' : 'Approve & record action'}
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={approve}
+              disabled={pending}
+              className="inline-flex items-center justify-center gap-1.5 rounded-md px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 bg-success text-success-foreground hover:opacity-90"
+            >
+              <CheckCircle2 className="size-4" />
+              {pending
+                ? 'Logging…'
+                : `Approve & log ${ACTION_LABEL[selected].toLowerCase()}`}
+            </button>
+            {selectedEntry?.predictedRetainedUsd != null && !pending && (
+              <span className="text-xs text-muted-foreground">
+                keeps ~{usd(selectedEntry.predictedRetainedUsd)} at risk
+              </span>
+            )}
+          </div>
         )}
-      </div>
+        {latestAction && !done && (
+          <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+            <span>Last logged:</span>
+            <ActionTypeBadge action={latestAction.actionType} />
+            <ActionStatusBadge status={latestAction.status} />
+            {latestAction.approvedBy && <span>· by {latestAction.approvedBy}</span>}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
