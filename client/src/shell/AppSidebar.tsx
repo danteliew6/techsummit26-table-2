@@ -60,7 +60,7 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
-        <NavLink to="/" onClick={closeOnMobile} className="flex items-center gap-2.5 px-2 py-2 rounded-md hover:bg-sidebar-accent transition-colors">
+        <NavLink to="/" onClick={closeOnMobile} className="flex items-center justify-center gap-2.5 px-2 py-2 rounded-md hover:bg-sidebar-accent transition-colors shrink-0 group-data-[collapsible=icon]:gap-0 group-data-[collapsible=icon]:px-1">
           <div
             className="flex aspect-square size-8 items-center justify-center rounded-md text-primary-foreground font-semibold shrink-0"
             style={{ background: 'var(--primary)' }}
