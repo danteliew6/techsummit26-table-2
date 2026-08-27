@@ -318,7 +318,7 @@ export async function createRmAction(
 
 export async function getRmAction(
   db: AppDb,
-  actionId: string,
+  actionId: number,
 ): Promise<RmActionRow | null> {
   const rows = await db
     .select()
@@ -342,7 +342,7 @@ export async function listRmActions(
 
 export async function updateRmActionStatus(
   db: AppDb,
-  actionId: string,
+  actionId: number,
   status: RmActionStatus,
   auditEntry: RmAuditEntry,
 ): Promise<void> {

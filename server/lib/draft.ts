@@ -90,7 +90,19 @@ ${rateInfo}${maturityInfo}
     ],
   });
 
-  const text = response.output_text?.trim();
+  // Try response.output_text first (older SDK versions)
+  let text = response.output_text?.trim();
+
+  // If empty, parse from response.output[] array (newer SDK versions / gateway format)
+  if (!text) {
+    text = (response.output ?? [])
+      .flatMap((o: any) => (o.content ?? []))
+      .filter((c: any) => c.type === 'output_text' || c.type === 'text')
+      .map((c: any) => c.text)
+      .join('')
+      .trim();
+  }
+
   if (!text) {
     throw new Error('Model returned empty response');
   }

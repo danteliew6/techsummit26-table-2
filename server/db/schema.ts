@@ -1,7 +1,6 @@
 import {
   text,
   timestamp,
-  uuid,
   integer,
   doublePrecision,
   jsonb,
@@ -44,7 +43,7 @@ export const appSchema = pgSchema('app');
 export const conversations = appSchema.table(
   'conversations',
   {
-    id: uuid('id').primaryKey().defaultRandom(),
+    id: integer('id').primaryKey(),
     userEmail: text('user_email').notNull(),
     title: text('title').notNull(),
     // 'default' for regular chats, 'demo_dock' for the floating dock's
@@ -68,8 +67,8 @@ export const conversations = appSchema.table(
 export const messages = appSchema.table(
   'messages',
   {
-    id: uuid('id').primaryKey().defaultRandom(),
-    conversationId: uuid('conversation_id')
+    id: integer('id').primaryKey(),
+    conversationId: integer('conversation_id')
       .notNull()
       .references(() => conversations.id, { onDelete: 'cascade' }),
     role: text('role', { enum: ['user', 'assistant', 'system'] }).notNull(),
@@ -98,8 +97,8 @@ export const messages = appSchema.table(
 export const feedback = appSchema.table(
   'feedback',
   {
-    id: uuid('id').primaryKey().defaultRandom(),
-    messageId: uuid('message_id')
+    id: integer('id').primaryKey(),
+    messageId: integer('message_id')
       .notNull()
       .references(() => messages.id, { onDelete: 'cascade' }),
     userEmail: text('user_email').notNull(),
@@ -194,7 +193,7 @@ export const products = appSchema.table('products', {
 
 // The only writable table — app records approved actions here
 export const rmActions = appSchema.table('rm_actions', {
-  id: uuid('id').primaryKey().defaultRandom(),
+  id: integer('id').primaryKey(),
   customerId: text('customer_id').notNull(),
   actionType: text('action_type', {
     enum: ['retention_offer', 'cross_sell', 'rm_outreach'],

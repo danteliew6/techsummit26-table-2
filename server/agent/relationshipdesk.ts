@@ -402,6 +402,7 @@ export async function configureAgentsSdk(ctx: AgentContext): Promise<void> {
       const headers = new Headers(init?.headers);
       headers.set('Connection', 'close');
       let body = init?.body;
+      let bodyWasModified = false;
       if (typeof body === 'string' && body.startsWith('{')) {
         try {
           const parsed = JSON.parse(body) as {
@@ -414,6 +415,7 @@ export async function configureAgentsSdk(ctx: AgentContext): Promise<void> {
               const id = item.id;
               if (typeof id === 'string' && id.length > 64) {
                 delete item.id;
+                bodyWasModified = true;
               }
             }
           }
@@ -429,12 +431,17 @@ export async function configureAgentsSdk(ctx: AgentContext): Promise<void> {
                 for (const part of content as Array<Record<string, unknown>>) {
                   if (part && typeof part === 'object') {
                     delete part.annotations;
+                    bodyWasModified = true;
                   }
                 }
               }
             }
           }
-          body = JSON.stringify(parsed);
+          if (bodyWasModified) {
+            body = JSON.stringify(parsed);
+            // Clear content-length since we modified the body; let undici calculate it fresh
+            headers.delete('content-length');
+          }
         } catch {
           /* not JSON — pass through */
         }

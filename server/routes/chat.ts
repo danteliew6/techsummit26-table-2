@@ -73,7 +73,12 @@ export function registerChatRoutes(app: Application, deps: Deps): void {
   app.get('/api/conversations/:id', async (req, res) => {
     try {
       const userEmail = getCurrentUserEmail(req);
-      const result = await getConversationWithMessages(db, userEmail, req.params.id);
+      const id = Number(req.params.id);
+      if (!Number.isInteger(id)) {
+        res.status(400).json({ error: 'invalid id' });
+        return;
+      }
+      const result = await getConversationWithMessages(db, userEmail, id);
       if (!result) {
         res.status(404).json({ error: 'not found' });
         return;
@@ -88,7 +93,12 @@ export function registerChatRoutes(app: Application, deps: Deps): void {
   app.delete('/api/conversations/:id', async (req, res) => {
     try {
       const userEmail = getCurrentUserEmail(req);
-      const ok = await deleteConversation(db, userEmail, req.params.id);
+      const id = Number(req.params.id);
+      if (!Number.isInteger(id)) {
+        res.status(400).json({ error: 'invalid id' });
+        return;
+      }
+      const ok = await deleteConversation(db, userEmail, id);
       if (!ok) {
         res.status(404).json({ error: 'not found' });
         return;
@@ -121,13 +131,18 @@ export function registerChatRoutes(app: Application, deps: Deps): void {
   app.post('/api/messages/:id/feedback', express.json(), async (req, res) => {
     try {
       const userEmail = getCurrentUserEmail(req);
+      const id = Number(req.params.id);
+      if (!Number.isInteger(id)) {
+        res.status(400).json({ error: 'invalid id' });
+        return;
+      }
       const value = (req.body?.value as 'up' | 'down') ?? null;
       const rationale = (req.body?.rationale as string | undefined) ?? undefined;
       if (value !== 'up' && value !== 'down') {
         res.status(400).json({ error: 'value must be "up" or "down"' });
         return;
       }
-      const msg = await getMessageById(db, req.params.id);
+      const msg = await getMessageById(db, id);
       if (!msg) {
         res.status(404).json({ error: 'message not found' });
         return;
@@ -145,7 +160,7 @@ export function registerChatRoutes(app: Application, deps: Deps): void {
         });
       }
       const row = await insertFeedback(db, {
-        messageId: req.params.id,
+        messageId: id,
         userEmail,
         value,
         rationale,

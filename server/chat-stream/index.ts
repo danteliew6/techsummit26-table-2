@@ -70,14 +70,15 @@ export async function handleChatStream(args: {
   });
 
   const userEmail = getCurrentUserEmail(req);
-  const conversationId = (req.body?.conversationId as string) ?? null;
+  const conversationIdStr = (req.body?.conversationId as string) ?? null;
+  const conversationId = conversationIdStr ? Number(conversationIdStr) : null;
   const messages = (req.body?.messages ?? []) as Array<{
     role: string;
     content: string;
   }>;
 
   // Persist user message + auto-title.
-  if (conversationId && messages.length > 0) {
+  if (conversationId && Number.isInteger(conversationId) && messages.length > 0) {
     const last = messages[messages.length - 1];
     if (last?.role === 'user' && typeof last.content === 'string') {
       try {
@@ -278,6 +279,7 @@ export async function handleChatStream(args: {
   // the turn silently).
   const shouldPersist =
     conversationId &&
+    Number.isInteger(conversationId) &&
     ((finalText && finalText.trim().length > 0) || errorText || canceled);
   if (shouldPersist) {
     try {

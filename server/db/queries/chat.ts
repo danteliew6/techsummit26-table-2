@@ -66,7 +66,7 @@ export async function getOrCreateDockConversation(
 export async function getConversationWithMessages(
   db: AppDb,
   userEmail: string,
-  id: string,
+  id: number,
 ) {
   const convoRows = await db
     .select()
@@ -85,7 +85,7 @@ export async function getConversationWithMessages(
 export async function deleteConversation(
   db: AppDb,
   userEmail: string,
-  id: string,
+  id: number,
 ) {
   const rows = await db
     .delete(conversations)
@@ -96,7 +96,7 @@ export async function deleteConversation(
 
 export async function appendMessage(
   db: AppDb,
-  conversationId: string,
+  conversationId: number,
   role: 'user' | 'assistant' | 'system',
   content: string,
   traceId?: string,
@@ -119,10 +119,10 @@ export async function appendMessage(
         const rows = await tx.execute(sql`
           INSERT INTO app.messages (conversation_id, role, content, position, trace_id, thinking, error)
           SELECT
-            ${conversationId}::uuid,
+            ${conversationId},
             ${role},
             ${content},
-            COALESCE((SELECT MAX(position) FROM app.messages WHERE conversation_id = ${conversationId}::uuid), -1) + 1,
+            COALESCE((SELECT MAX(position) FROM app.messages WHERE conversation_id = ${conversationId}), -1) + 1,
             ${traceId ?? null},
             ${thinkingJson}::jsonb,
             ${error ?? null}
@@ -132,7 +132,7 @@ export async function appendMessage(
           .update(conversations)
           .set({ updatedAt: new Date() })
           .where(eq(conversations.id, conversationId));
-        return rows.rows[0] as { id: string; position: number };
+        return rows.rows[0] as { id: number; position: number };
       });
     } catch (e) {
       const pgCode = (e as { cause?: { code?: string }; code?: string })
@@ -153,7 +153,7 @@ export async function appendMessage(
 
 export async function renameConversationIfDefault(
   db: AppDb,
-  id: string,
+  id: number,
   title: string,
 ) {
   await db
@@ -162,7 +162,7 @@ export async function renameConversationIfDefault(
     .where(and(eq(conversations.id, id), eq(conversations.title, 'New conversation')));
 }
 
-export async function getMessageById(db: AppDb, id: string) {
+export async function getMessageById(db: AppDb, id: number) {
   const rows = await db.select().from(messages).where(eq(messages.id, id));
   return rows[0] ?? null;
 }
@@ -170,7 +170,7 @@ export async function getMessageById(db: AppDb, id: string) {
 export async function insertFeedback(
   db: AppDb,
   args: {
-    messageId: string;
+    messageId: number;
     userEmail: string;
     value: 'up' | 'down';
     rationale?: string;

@@ -120,7 +120,11 @@ export function registerRelationshipRoutes(
     express.json(),
     async (req, res) => {
       try {
-        const actionId = String(req.params.actionId);
+        const actionId = Number(req.params.actionId);
+        if (!Number.isInteger(actionId)) {
+          res.status(400).json({ error: 'invalid actionId' });
+          return;
+        }
         const by = getCurrentUserEmail(req);
         const body = req.body as { status?: RmActionStatus; notes?: string };
         const status = body.status ?? 'approved';
