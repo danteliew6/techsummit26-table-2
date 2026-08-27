@@ -108,7 +108,7 @@ export function OperationsView() {
                     Not sure who to call first?
                   </div>
                   <div className="text-sm font-medium text-foreground mt-0.5">
-                    Ask the assistant who's most at risk
+                    {config.assistantScript[0].label ?? config.assistantScript[0].prompt}
                   </div>
                 </div>
                 <ArrowRight className="size-4 text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />

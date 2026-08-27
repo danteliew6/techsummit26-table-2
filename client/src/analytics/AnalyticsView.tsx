@@ -13,11 +13,15 @@
  * the analytics tables on any workspace. Rows come back via `useChartData`
  * and feed the chart components' `data` prop.
  *
+ * Layout: one continuous page that reads top-to-bottom — headline KPIs, where
+ * the exposure sits (band / action / tier / maturity), the program economics
+ * (ROI / rate gap / coverage funnel), then the shortlist of customers to work.
+ *
  * Repurposing: edit/add a .sql under config/queries/, register its key in
  * charts.ts's QUERY_FILES map, and reference it here via <ChartData chartKey=…>.
  */
 import { useEffect, useState } from 'react';
-import { BarChart, DonutChart } from '@databricks/appkit-ui/react';
+import { BarChart } from '@databricks/appkit-ui/react';
 import { BRAND_PALETTE } from '@/lib/brand';
 
 const usd0 = (n: number) =>
@@ -78,7 +82,7 @@ function useChartData<T = Record<string, unknown>>(key: string): {
 export function AnalyticsView() {
   return (
     <div className="h-full overflow-y-auto">
-      <div className="max-w-6xl mx-auto px-4 sm:px-8 py-6 sm:py-10 space-y-6 sm:space-y-10 pb-32">
+      <div className="max-w-6xl mx-auto px-4 sm:px-8 py-6 sm:py-10 space-y-6 sm:space-y-8 pb-32">
         <div>
           <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground mb-2">
             Retention analytics
@@ -87,48 +91,39 @@ export function AnalyticsView() {
             Where the attrition risk is concentrated.
           </h1>
           <p className="text-muted-foreground max-w-2xl">
-            Live queries against the SQL warehouse — the same governed numbers
-            the assistant reasons about, on one page. Use the Book of Business
-            to act; use this page to spot the pattern.
+            Live queries against the SQL warehouse — the same governed numbers the
+            assistant reasons about. Read top-to-bottom: the exposure, where it sits,
+            the plays that recover it, and how much of the book is already covered.
           </p>
         </div>
 
-        {/* Top row: revenue at risk by band + next-best-action mix. */}
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+        {/* Headline KPIs — the exposure at a glance. */}
+        <KpiStrip />
+
+        {/* Exposure: by severity band + by recommended action. */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <ChartCard
             title="Revenue at risk by band"
-            subtitle="Annual at-risk revenue across all customers, by risk severity"
-            scope="All customers (US$M)"
-            className="lg:col-span-3"
+            subtitle="Annual at-risk revenue by risk severity"
+            scope="Share of at-risk"
           >
-            <ChartData chartKey="risk_by_band" height={260}>
-              {(rows) => (
-                <BarChart
-                  data={rows.map((r) => ({ ...r, revenue_at_risk_usd: (r.revenue_at_risk_usd ?? 0) / 1e6 }))}
-                  xKey="risk_band"
-                  yKey="revenue_at_risk_usd"
-                  colors={[BRAND_PALETTE[0]]}
-                  height={260}
-                />
-              )}
-            </ChartData>
+            <BandBreakdown />
           </ChartCard>
 
           <ChartCard
             title="Next best action mix"
             subtitle="Multi-year relationship value by recommended action"
             scope="Predicted retained (US$M)"
-            className="lg:col-span-2"
           >
             <div className="h-[260px] flex flex-col justify-center">
-              <ChartData chartKey="nba_action_mix" height={220}>
+              <ChartData chartKey="nba_action_mix" height={240}>
                 {(rows) => (
                   <BarChart
                     data={rows.map((r) => ({ ...r, predicted_retained_usd: (r.predicted_retained_usd ?? 0) / 1e6 }))}
                     xKey="recommended_action"
                     yKey="predicted_retained_usd"
                     colors={[BRAND_PALETTE[1] ?? BRAND_PALETTE[0]]}
-                    height={220}
+                    height={240}
                   />
                 )}
               </ChartData>
@@ -136,86 +131,61 @@ export function AnalyticsView() {
           </ChartCard>
         </div>
 
-        {/* At-risk revenue by relationship tier. */}
+        {/* Where it sits + how soon it comes due. */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <ChartCard
+            title="Revenue at risk by tier"
+            subtitle="Annual at-risk revenue by relationship tier"
+            scope="Share of at-risk"
+          >
+            <TierBreakdown />
+          </ChartCard>
+
+          <ChartCard
+            title="Maturity urgency"
+            subtitle="Revenue at risk by days to product maturity"
+            scope="Act-now window (US$M)"
+          >
+            <MaturityUrgency />
+          </ChartCard>
+        </div>
+
+        {/* Program economics: which plays pay, and where the rate gap is. */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <ChartCard
+            title="Retention ROI by action"
+            subtitle="Predicted net value + retained revenue per play"
+            scope="Predicted value"
+          >
+            <RetentionROI />
+          </ChartCard>
+
+          <ChartCard
+            title="Rate gap analysis"
+            subtitle="At-risk revenue by current-vs-recommended rate gap"
+            scope="At-risk revenue (US$M)"
+          >
+            <RateGapAnalysis />
+          </ChartCard>
+        </div>
+
+        {/* Coverage funnel — how much of the at-risk book the program has touched. */}
         <ChartCard
-          title="Revenue at risk by tier"
-          subtitle="Annual at-risk revenue by customer tier"
-          scope="At-risk customers (US$M)"
+          title="Retention coverage funnel"
+          subtitle="At-risk revenue flowing through recommendation → action stages"
+          scope="Coverage funnel"
         >
-          <ChartData chartKey="atrisk_by_tier" height={240}>
-            {(rows) => (
-              <BarChart
-                data={rows.map((r) => ({ ...r, revenue_at_risk_usd: (r.revenue_at_risk_usd ?? 0) / 1e6 }))}
-                xKey="tier"
-                yKey="revenue_at_risk_usd"
-                colors={[BRAND_PALETTE[0]]}
-                height={240}
-              />
-            )}
-          </ChartData>
+          <RetentionCoverageFunnel />
         </ChartCard>
 
-        {/* Top at-risk customers table. */}
+        {/* Top at-risk customers — the shortlist to work in Book of Business. */}
         <ChartCard
-          title="Top customers at risk"
-          subtitle="Ranked by annual revenue at risk; see Details in Relationship Desk for actions"
+          title="Top 10 customers at risk"
+          subtitle="Ranked by annual revenue at risk; open Book of Business to act"
           scope="By revenue at risk"
           flush
         >
           <TopAtRiskTable />
-        </ChartCard>
-
-        {/* Retention cockpit: urgency, ROI, rate gap, coverage. */}
-        <div className="mt-12 pt-6 border-t border-muted-foreground/20">
-          <div>
-            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground mb-2">
-              Retention program
-            </div>
-            <h2 className="text-2xl font-semibold tracking-tight text-foreground mb-2">
-              Execution dashboard.
-            </h2>
-            <p className="text-muted-foreground max-w-2xl text-sm">
-              Track urgency, ROI, and coverage of retention actions. The funnel shows
-              how much of the at-risk book is covered by recommendations and actions.
-            </p>
-          </div>
-        </div>
-
-        {/* Maturity urgency. */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <ChartCard
-            title="Maturity urgency"
-            subtitle="Revenue at risk by days to product maturity"
-            scope="Act-now window"
-          >
-            <MaturityUrgency />
-          </ChartCard>
-
-          <ChartCard
-            title="Retention ROI by action"
-            subtitle="Predicted net value + retained revenue per play"
-            scope="Predicted value (US$M)"
-          >
-            <RetentionROI />
-          </ChartCard>
-        </div>
-
-        {/* Rate gap analysis. */}
-        <ChartCard
-          title="Rate gap analysis"
-          subtitle="Current APY vs recommended lift needed for at-risk deposits"
-          scope="Basis points (bps)"
-        >
-          <RateGapAnalysis />
-        </ChartCard>
-
-        {/* Retention coverage funnel. */}
-        <ChartCard
-          title="Retention coverage funnel"
-          subtitle="At-risk revenue flowing through recommendation → action stages"
-          scope="Coverage funnel (US$M)"
-        >
-          <RetentionCoverageFunnel />
         </ChartCard>
       </div>
     </div>
@@ -314,6 +284,25 @@ type TopAtRiskRow = {
   min_days_to_maturity: number | null;
 };
 
+type RiskByBandRow = {
+  risk_band: string;
+  customers: number;
+  balance_at_risk_usd: number;
+  revenue_at_risk_usd: number;
+};
+
+type AtriskByTierRow = {
+  tier: string;
+  atrisk_customers: number;
+  revenue_at_risk_usd: number;
+};
+
+type NbaActionMixRow = {
+  recommended_action: string;
+  customers: number;
+  predicted_retained_usd: number;
+};
+
 type MaturityUrgencyRow = {
   maturity_bucket: string;
   customers: number;
@@ -345,6 +334,194 @@ function bandToneClass(band: string | null): string {
   if (band === 'critical') return 'text-destructive font-semibold';
   if (band === 'elevated') return 'text-warning font-semibold';
   return 'text-muted-foreground';
+}
+
+/**
+ * Headline KPI strip — the exposure at a glance, composed from three governed
+ * queries (band severity, coverage funnel, action mix). Cards fall back to "—"
+ * while loading and surface a single inline error if any feed fails.
+ */
+function KpiStrip() {
+  const band = useChartData<RiskByBandRow>('risk_by_band');
+  const funnel = useChartData<RetentionCoverageFunnelRow>('retention_coverage_funnel');
+  const nba = useChartData<NbaActionMixRow>('nba_action_mix');
+
+  const loading = band.isLoading || funnel.isLoading || nba.isLoading;
+  const error = band.error ?? funnel.error ?? nba.error;
+
+  const total = funnel.data?.find((d) => d.stage === 'Total at-risk revenue');
+  const withRec = funnel.data?.find((d) => d.stage === 'With recommendation');
+  const actioned = funnel.data?.find((d) => d.stage === 'Actioned');
+  const totalRevenue = total?.revenue_at_risk_usd ?? 0;
+  const criticalRev =
+    band.data?.find((d) => d.risk_band === 'critical')?.revenue_at_risk_usd ?? 0;
+  const predictedRetained = (nba.data ?? []).reduce(
+    (s, r) => s + (r.predicted_retained_usd ?? 0),
+    0,
+  );
+  const coveragePct = totalRevenue > 0 ? (withRec?.revenue_at_risk_usd ?? 0) / totalRevenue : 0;
+
+  const cards: { label: string; value: string; sub: string; tone: string }[] = [
+    {
+      label: 'Annual revenue at risk',
+      value: usdM(totalRevenue),
+      sub: `${(total?.customers ?? 0).toLocaleString()} at-risk customers`,
+      tone: 'text-foreground',
+    },
+    {
+      label: 'Critical-band exposure',
+      value: usdM(criticalRev),
+      sub: totalRevenue > 0 ? `${pct(criticalRev / totalRevenue)} of at-risk revenue` : '—',
+      tone: 'text-destructive',
+    },
+    {
+      label: 'Recoverable if actioned',
+      value: usdM(predictedRetained),
+      sub: 'Predicted retained (multi-year)',
+      tone: 'text-foreground',
+    },
+    {
+      label: 'Book covered',
+      value: pct(coveragePct),
+      sub: `${(actioned?.customers ?? 0).toLocaleString()} actioned so far`,
+      tone: 'text-foreground',
+    },
+  ];
+
+  if (error) {
+    return (
+      <div className="rounded-xl border border-border bg-card px-4 py-3 text-sm text-destructive">
+        Couldn't load headline metrics: {error}
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      {cards.map((c) => (
+        <div key={c.label} className="rounded-xl border border-border bg-card p-4">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+            {c.label}
+          </div>
+          <div className={`mt-2 text-2xl font-semibold tabular-nums ${c.tone}`}>
+            {loading ? '—' : c.value}
+          </div>
+          <div className="mt-1 text-xs text-muted-foreground">
+            {loading ? 'Loading…' : c.sub}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Horizontal semantic breakdown: bar length is linear in value (largest fills
+ * the track), the value + share-of-total print on the right, and an optional
+ * customer count sits underneath. Reads far better than a 3-bar vertical chart.
+ */
+function BreakdownBars({
+  rows,
+  labelKey,
+  valueKey,
+  countKey,
+  colorFor,
+}: {
+  rows: Record<string, unknown>[];
+  labelKey: string;
+  valueKey: string;
+  countKey?: string;
+  colorFor: (label: string, idx: number) => string;
+}) {
+  const values = rows.map((r) => Number(r[valueKey] ?? 0));
+  const max = Math.max(1, ...values);
+  const total = values.reduce((s, v) => s + v, 0);
+  return (
+    <div className="space-y-4 py-2">
+      {rows.map((row, idx) => {
+        const label = String(row[labelKey] ?? '—');
+        const value = Number(row[valueKey] ?? 0);
+        const count = countKey != null ? Number(row[countKey] ?? 0) : null;
+        const width = (value / max) * 100;
+        const share = total > 0 ? value / total : 0;
+        return (
+          <div key={label} className="space-y-1.5">
+            <div className="flex items-baseline justify-between text-sm">
+              <span className="font-medium capitalize">{label.replace(/_/g, ' ')}</span>
+              <span className="text-right">
+                <span className="font-mono font-semibold tabular-nums">{usdM(value)}</span>{' '}
+                <span className="text-muted-foreground text-xs">{pct(share)}</span>
+              </span>
+            </div>
+            <div className="bg-muted rounded-full h-2.5 overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all duration-500"
+                style={{ width: `${width}%`, backgroundColor: colorFor(label, idx) }}
+              />
+            </div>
+            {count != null && (
+              <div className="text-[11px] text-muted-foreground">
+                {count.toLocaleString()} customers
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Severity → semantic fill, so the chart's color carries the same meaning as
+// the band labels everywhere else in the app.
+const BAND_COLOR: Record<string, string> = {
+  critical: 'var(--destructive)',
+  elevated: 'var(--warning)',
+  watch: 'var(--muted-foreground)',
+};
+
+function BandBreakdown() {
+  const { data, error, isLoading } = useChartData<RiskByBandRow>('risk_by_band');
+  if (error) {
+    return <div className="flex items-center justify-center h-[220px] text-sm text-destructive">Error: {error}</div>;
+  }
+  if (isLoading || !data) {
+    return <div className="flex items-center justify-center h-[220px] text-sm text-muted-foreground">Loading…</div>;
+  }
+  const rows = data.filter((r) => ['critical', 'elevated', 'watch'].includes(r.risk_band));
+  if (rows.length === 0) {
+    return <div className="flex items-center justify-center h-[220px] text-sm text-muted-foreground">No data.</div>;
+  }
+  return (
+    <BreakdownBars
+      rows={rows}
+      labelKey="risk_band"
+      valueKey="revenue_at_risk_usd"
+      countKey="customers"
+      colorFor={(label) => BAND_COLOR[label] ?? 'var(--muted-foreground)'}
+    />
+  );
+}
+
+function TierBreakdown() {
+  const { data, error, isLoading } = useChartData<AtriskByTierRow>('atrisk_by_tier');
+  if (error) {
+    return <div className="flex items-center justify-center h-[220px] text-sm text-destructive">Error: {error}</div>;
+  }
+  if (isLoading || !data) {
+    return <div className="flex items-center justify-center h-[220px] text-sm text-muted-foreground">Loading…</div>;
+  }
+  if (data.length === 0) {
+    return <div className="flex items-center justify-center h-[220px] text-sm text-muted-foreground">No data.</div>;
+  }
+  return (
+    <BreakdownBars
+      rows={data}
+      labelKey="tier"
+      valueKey="revenue_at_risk_usd"
+      countKey="atrisk_customers"
+      colorFor={(_label, idx) => BRAND_PALETTE[idx % BRAND_PALETTE.length]}
+    />
+  );
 }
 
 function MaturityUrgency() {
@@ -488,11 +665,13 @@ function TopAtRiskTable() {
   if (data.length === 0) {
     return <div className="px-4 py-6 text-sm text-muted-foreground text-center">No at-risk customers.</div>;
   }
+  const rows = data.slice(0, 10);
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm tabular-nums">
         <thead className="text-[11px] uppercase tracking-[0.1em] text-muted-foreground">
           <tr className="border-b border-border">
+            <th className="text-left font-medium px-3 py-2">#</th>
             <th className="text-left font-medium px-3 py-2">Customer</th>
             <th className="text-left font-medium px-3 py-2">Tier</th>
             <th className="text-left font-medium px-3 py-2">Band</th>
@@ -504,8 +683,9 @@ function TopAtRiskTable() {
           </tr>
         </thead>
         <tbody className="divide-y divide-border">
-          {data.map((row) => (
+          {rows.map((row, idx) => (
             <tr key={row.customer_id} className="hover:bg-muted/40">
+              <td className="px-3 py-2 text-muted-foreground tabular-nums">{idx + 1}</td>
               <td className="px-3 py-2 font-mono text-xs">{row.customer_id}</td>
               <td className="px-3 py-2 capitalize text-muted-foreground">
                 {(row.tier ?? '—').replace(/_/g, ' ')}

@@ -268,7 +268,7 @@ export function NextBestActionTab({
         </div>
       </section>
 
-      {/* 2 — PRESCRIBE: the recommended action, hero */}
+      {/* 2 — PRESCRIBE: the recommended action, hero — reflects current selection */}
       {nba && (
         <section className="rounded-xl border border-primary/40 bg-primary/5 px-5 py-4">
           <div className="flex items-center gap-2 mb-3">
@@ -280,24 +280,29 @@ export function NextBestActionTab({
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
-                <ActionTypeBadge action={nba.recommendedAction} />
-                {nba.recommendedOfferProductId && (
+                <ActionTypeBadge action={selected} />
+                {(selectedProduct?.productId || selectedEntry?.offeredProductId || nba.recommendedOfferProductId) && (
                   <span className="text-sm font-medium">
-                    {nba.recommendedOfferProductId}
-                    {nba.recommendedRateApy != null && ` · ${formatAPY(nba.recommendedRateApy)} APY`}
+                    {selectedProduct?.productId || selectedEntry?.offeredProductId || nba.recommendedOfferProductId}
+                    {(selectedProduct?.rateApy ?? selectedEntry?.rateApy ?? nba.recommendedRateApy) != null && ` · ${formatAPY(selectedProduct?.rateApy ?? selectedEntry?.rateApy ?? nba.recommendedRateApy)} APY`}
+                  </span>
+                )}
+                {selected === nba.recommendedAction && (
+                  <span className="text-[10px] uppercase tracking-wider text-primary font-semibold">
+                    Recommended
                   </span>
                 )}
               </div>
               <div className="text-xs text-muted-foreground max-w-sm">
-                {ACTION_RATIONALE[nba.recommendedAction]}
+                {ACTION_RATIONALE[selected]}
               </div>
             </div>
             <div className="text-right">
               <div className="text-2xl font-bold tabular-nums text-success">
-                {usd(nba.predictedRetainedUsd)}
+                {usd(selectedEntry?.predictedRetainedUsd ?? nba.predictedRetainedUsd)}
               </div>
               <div className="text-[11px] text-muted-foreground">
-                predicted retained · net {usd(nba.predictedNetValueUsd)}
+                predicted retained · net {usd(selectedEntry?.predictedNetValueUsd ?? nba.predictedNetValueUsd)}
               </div>
             </div>
           </div>
@@ -351,12 +356,50 @@ export function NextBestActionTab({
         })}
       </section>
 
-      {/* 3.5 — SEARCH PRODUCTS: enrich recommendations with cross-sell */}
+      {/* 4 — DRAFT & COMMENTS */}
       <section className="space-y-2">
-        <div className="text-xs font-semibold uppercase tracking-[0.15em] text-muted-foreground">
-          Find a product (optional)
+        <div className="flex items-center justify-between">
+          <label
+            htmlFor="nba-note"
+            className="text-xs font-semibold uppercase tracking-[0.15em] text-muted-foreground"
+          >
+            Comments
+          </label>
+          {!done && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={generateDraft}
+                disabled={draftGenerating}
+                className="inline-flex items-center gap-1 text-[11px] text-primary hover:text-primary/80 transition-colors disabled:opacity-50"
+              >
+                {draftGenerating ? (
+                  <Loader2 className="size-3 animate-spin" />
+                ) : (
+                  <Sparkles className="size-3" />
+                )}
+                Generate draft
+              </button>
+              <button
+                onClick={resetDraft}
+                className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <RotateCcw className="size-3" /> Reset draft
+              </button>
+            </div>
+          )}
         </div>
-        <div className="rounded-lg border border-border bg-background p-3 space-y-2">
+        {draftError && (
+          <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+            <TriangleAlert className="size-3.5 mt-0.5 shrink-0" />
+            <span>Couldn't generate draft: {draftError}. Try again.</span>
+          </div>
+        )}
+
+        {/* Find an alternative product (optional) — nested inside draft */}
+        <div className="space-y-2 rounded-lg border border-border bg-background p-3">
+          <div className="text-xs font-semibold uppercase tracking-[0.15em] text-muted-foreground">
+            Find an alternative product (optional)
+          </div>
           {selectedProduct ? (
             // Selected product — full detail card
             <div className="rounded-md bg-primary/5 border border-primary/30 p-3 space-y-1.5">
@@ -452,46 +495,7 @@ export function NextBestActionTab({
             <div className="text-xs text-muted-foreground text-center py-2">No products found</div>
           )}
         </div>
-      </section>
 
-      {/* 4 — DRAFT: the outreach note */}
-      <section className="space-y-2">
-        <div className="flex items-center justify-between">
-          <label
-            htmlFor="nba-note"
-            className="text-xs font-semibold uppercase tracking-[0.15em] text-muted-foreground"
-          >
-            Outreach note — {ACTION_LABEL[selected]}
-          </label>
-          {!done && (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={generateDraft}
-                disabled={draftGenerating}
-                className="inline-flex items-center gap-1 text-[11px] text-primary hover:text-primary/80 transition-colors disabled:opacity-50"
-              >
-                {draftGenerating ? (
-                  <Loader2 className="size-3 animate-spin" />
-                ) : (
-                  <Sparkles className="size-3" />
-                )}
-                Generate draft
-              </button>
-              <button
-                onClick={resetDraft}
-                className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <RotateCcw className="size-3" /> Reset draft
-              </button>
-            </div>
-          )}
-        </div>
-        {draftError && (
-          <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-            <TriangleAlert className="size-3.5 mt-0.5 shrink-0" />
-            <span>Couldn't generate draft: {draftError}. Try again.</span>
-          </div>
-        )}
         <textarea
           id="nba-note"
           value={note}
@@ -501,8 +505,7 @@ export function NextBestActionTab({
           className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary/50 leading-relaxed disabled:opacity-70"
         />
         <p className="text-[11px] text-muted-foreground">
-          Review and edit before logging — this note is saved to the customer's
-          record as the outreach that was taken.
+          Based on the selected option and the draft you configured — logged as a comment on the customer's record.
         </p>
       </section>
 

@@ -13,4 +13,4 @@ SELECT
 FROM IDENTIFIER(:catalog || '.' || :schema || '.gold_customer_position')
 WHERE risk_band IN ('critical', 'elevated', 'watch')
 ORDER BY revenue_at_risk_usd DESC
-LIMIT 20
+LIMIT 10
