@@ -47,11 +47,11 @@ function draftNote(
   const product = entry?.offeredProductId ?? bundle.nba?.recommendedOfferProductId;
   switch (actionType) {
     case 'retention_offer':
-      return `Reached out to offer a competitive renewal${rate ? ` at ${formatAPY(rate)} APY` : ''}${product ? ` on ${product}` : ''} ahead of maturity. Emphasized the long-standing relationship and that no action is needed to keep the balance at Meridian.`;
+      return `Hi, this is your relationship manager at Meridian. As your deposit${product ? ` (${product})` : ''} approaches maturity, I'd like to offer you a competitive renewal${rate ? ` at ${formatAPY(rate)} APY` : ''} so your balance keeps earning without interruption — and there's nothing you need to do on your end to keep your funds with us. I'd genuinely like to keep our relationship going. Reply here or call 1-800-MERIDIAN and I'll take care of the rest.`;
     case 'cross_sell':
-      return `Introduced ${product ?? 'a product the customer qualifies for'} as a fit for their profile and goals. Framed as a value-add on top of the existing relationship.`;
+      return `Hi, this is your relationship manager at Meridian. Looking at your profile and goals, I think ${product ?? 'a product you now qualify for'} could be a strong fit alongside your current accounts. I'd welcome the chance to walk you through the benefits whenever it's convenient for you — just reply here or call 1-800-MERIDIAN.`;
     case 'rm_outreach':
-      return `Scheduled a relationship-manager call to review the customer's goals and address any concerns before the upcoming maturity.`;
+      return `Hi, this is your relationship manager at Meridian. I'd love to set up a short call to understand your goals and make sure everything is working well for you ahead of your upcoming maturity. Let me know a time that suits you, or call 1-800-MERIDIAN and we'll find a slot that works.`;
   }
 }
 
