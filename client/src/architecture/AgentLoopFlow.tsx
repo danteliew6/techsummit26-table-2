@@ -3,8 +3,8 @@
  * diagram on the home page. Shows how one conversation becomes a multi-step
  * plan with a human-in-the-loop checkpoint:
  *
- *   Operator → [ ANALYSIS box: Agent Bricks · Genie · Lakebase ]
- *            → Propose action → fork{ Send email, Approve refunds }
+ *   Relationship mgr → [ ANALYSIS box: Agent Bricks · Genie · Lakebase ]
+ *            → Propose action → fork{ Draft outreach, Log action }
  *   ──────── governed by Unity Catalog · AI Gateway ────────
  *
  * Purely visual — no live state. Tiles use the shared <Stage> primitive at
@@ -129,14 +129,14 @@ export function AgentLoopFlow() {
       <p className="text-sm text-muted-foreground leading-relaxed mb-5">
         The agent doesn't just diagnose — it{' '}
         <span className="font-medium text-foreground">takes the action</span>.
-        Genie queries the data, you approve the plan, then the agent sends the
-        apology emails and files the refunds, updating Lakebase live. One
-        conversation, end to end.
+        Genie queries the data, you approve the plan, then the agent drafts the
+        outreach note and logs the approved next best action, updating Lakebase
+        live. One conversation, end to end.
       </p>
 
       {/* the loop — desktop */}
       <div className="hidden md:flex items-center justify-center" style={{ gap: 0, paddingBottom: 12 }}>
-        <Stage tileSize={50} iconSize={32} icon={<OperatorIcon />} name="Operator" sub="asks the question" />
+        <Stage tileSize={50} iconSize={32} icon={<OperatorIcon />} name="Relationship mgr" sub="asks the question" />
         <Connector width={56} centered />
 
         {/* analysis box */}
@@ -169,14 +169,14 @@ export function AgentLoopFlow() {
           className="flex flex-col"
           style={{ height: 130, justifyContent: 'space-between', flexShrink: 0 }}
         >
-          <Stage tileSize={50} iconSize={32} icon={<SendIcon />} name="Send email" />
-          <Stage tileSize={50} iconSize={32} icon={<LakebaseIcon />} name="Approve refunds" sub="update Lakebase" />
+          <Stage tileSize={50} iconSize={32} icon={<SendIcon />} name="Draft outreach" />
+          <Stage tileSize={50} iconSize={32} icon={<LakebaseIcon />} name="Log action" sub="update Lakebase" />
         </div>
       </div>
 
       {/* the loop — mobile: stack vertically without animated connectors */}
       <ol className="md:hidden flex flex-col gap-3 mt-2 mb-2">
-        <MobileStep icon={<OperatorIcon />} label="Operator" sub="asks the question" />
+        <MobileStep icon={<OperatorIcon />} label="Relationship mgr" sub="asks the question" />
         <li className="rounded-xl border border-border bg-background p-3 flex flex-col gap-2">
           <div className="text-[10.5px] font-mono uppercase tracking-[0.16em] text-muted-foreground">Agentic analysis</div>
           <MiniTile icon={<AgentBricksIcon />} label="Agent Bricks · orchestrates" />
@@ -184,8 +184,8 @@ export function AgentLoopFlow() {
           <MiniTile icon={<LakebaseIcon />} label="Lakebase · queries the data" />
         </li>
         <MobileStep icon={<ProposeIcon />} label="Propose action" sub="human approves" />
-        <MobileStep icon={<SendIcon />} label="Send email" />
-        <MobileStep icon={<LakebaseIcon />} label="Approve refunds" sub="update Lakebase" />
+        <MobileStep icon={<SendIcon />} label="Draft outreach" />
+        <MobileStep icon={<LakebaseIcon />} label="Log action" sub="update Lakebase" />
       </ol>
 
       {/* governed strip */}

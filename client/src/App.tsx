@@ -4,7 +4,7 @@
  * Each route maps to one "section" of the demo — see the folder names:
  *   home/       — the narrative landing page
  *   chat/       — the Assistant (conversations + streaming + thinking panel)
- *   operations/ — OLTP workflow (returns queue, lot cards, decision drawer)
+ *   operations/ — OLTP workflow (Book of Business, customer 360, act/approve)
  *   analytics/  — warehouse-backed charts
  *   dashboard/  — embedded AI/BI dashboard iframe
  *   platform/   — Databricks Data + AI pitch page

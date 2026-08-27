@@ -181,7 +181,7 @@ export async function handleChatStream(args: {
       masEndpointName: config.masEndpointName,
       databricksHost: host,
       // Foundation Model endpoint name. Needs the OpenAI Responses API
-      // (refundops.ts `setOpenAIAPI('responses')`). `databricks-gpt-5-4` is the
+      // (relationshipdesk.ts `setOpenAIAPI('responses')`). `databricks-gpt-5-4` is the
       // baseline default; a newer GPT endpoint with `openai/v1/responses` enabled
       // works too. Claude/non-Responses models 400 BAD_REQUEST on that route. Use
       // the EXACT endpoint name from Serving → Foundation Models; never abbreviate.

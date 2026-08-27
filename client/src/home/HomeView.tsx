@@ -27,7 +27,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { useSession, type ScriptStep } from '@/lib/api';
-import { fetchActivity } from '@/lib/returns';
+import { fetchActivity } from '@/lib/relationships';
 import type { ActivityEvent } from '@/shared/types';
 import { dataMutated } from '@/lib/events';
 import { dockController } from '@/chat/dockController';
@@ -41,27 +41,27 @@ import { AgentLoopFlow } from '@/architecture/AgentLoopFlow';
 // ---------------------------------------------------------------------------
 
 const HERO = {
-  name: 'Claire Dubois',
-  role: 'VP of Operations',
+  name: 'Priya Menon',
+  role: 'Relationship Manager',
 };
 
 const STORY = {
-  headline: "Returns are running 3x normal — and we don't know why.",
+  headline: "A competitor's rate promo is pulling my best clients out.",
   situation:
-    "Three weeks ago returns jumped from ~$60K/week to $180K, driven by three skincare SKUs with a 30% return rate. They're still elevated at ~$80K. Revenue looks fine, orders look fine — but the refunds line is eating the quarter.",
-  goal: 'Find the root cause, confirm the blast radius, and decide on a recall or field fix.',
+    "Several long-tenured, high-value clients have CDs maturing in the next few weeks and balances starting to move. CUST-0000214 — 12 years, a large 18-month CD maturing in ~9 days — is flagged critical at 0.88 attrition risk. My overnight extract won't catch this in time.",
+  goal: 'See who is at risk right now, understand why, and take the right next best action — retention offer, cross-sell, or a call — before the money leaves.',
 };
 
 const STARTER_QUESTIONS = [
-  'Why do I have so many returns?',
-  'Was there an incident for that lot?',
-  'Which of the affected customers are premium (CS-tagged or model-found)?',
+  'Who are my highest-value customers at risk right now?',
+  'Why is CUST-0000214 at risk of leaving?',
+  'What is the next best action for CUST-0000214?',
 ];
 
 // The featured action's copy is inlined in the JSX below — the section is just
 // HTML, edit it freely. The prompt text is the single thing the agent runs.
 const FEATURED_ACTION_PROMPT =
-  "Something is off with our returns right now. Find the worst production lot, then use the premium classifier to split the affected customers — CS-tagged premium PLUS the hidden premiums the model surfaces — from the standard cohort. Draft two apology email templates: a 20% personal apology for premium, a 5% goodwill for standard. Show me both, including the count of CS-tagged vs model-found premiums, before sending. Wait for my approval. Once I say go, email everyone with their tier's coupon and approve all the refunds.";
+  "CUST-0000214 is flagged critical with a large CD maturing in days. Investigate why they're at risk, rank the next best action using the model, and if a retention offer wins, draft the outreach note and show me the tradeoff against cross-sell and an RM call before anything is recorded. Wait for my approval, then log the approved action.";
 
 export function HomeView() {
   const { config, configError, retry: retrySession } = useSession();
@@ -134,7 +134,7 @@ export function HomeView() {
         {/* Persona journey diagram */}
         <section className="space-y-5">
           <div className="hidden sm:block text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            A week of work · before noon
+            A morning on the desk
           </div>
           <JourneyDiagram heroName={heroFirstName} script={config.assistantScript} />
 
@@ -181,20 +181,19 @@ export function HomeView() {
                 Let the assistant handle it
               </div>
               <h3 className="display text-2xl font-semibold mb-2 leading-tight">
-                Handle the bad-lot returns — tier the offer by premium status
+                Save the at-risk client — rank the next best action
               </h3>
               <p className="hidden sm:block text-sm opacity-85 leading-relaxed mb-5 max-w-2xl">
-                The assistant traces the spike to one lot, then asks the
-                premium classifier which of the affected customers your CS
-                team has tagged AND which hidden premiums the model has
-                surfaced (untagged customers who look just like the tagged
-                ones). It drafts two apology emails (20% personal apology
-                for premium, 5% goodwill for the rest), and waits for your
-                approval before anything goes out.
+                The assistant investigates why CUST-0000214 is at risk — a
+                maturing CD and balances drifting out after a competitor rate
+                move — then uses the model to rank the next best action
+                (retention offer vs. cross-sell vs. an RM call) by predicted
+                retained value. It drafts the outreach note and waits for your
+                approval before anything is logged.
               </p>
               <p className="sm:hidden text-sm opacity-85 leading-relaxed mb-5">
-                Trace the spike, tier the offer (premium vs. rest), draft
-                the apology emails — approve before anything goes out.
+                Investigate the risk, rank the next best action, draft the
+                outreach — approve before anything is logged.
               </p>
               <button
                 onClick={() => dockController.newAndSend(FEATURED_ACTION_PROMPT)}
@@ -224,7 +223,7 @@ export function HomeView() {
 
 /**
  * Four-step narrative. Each step is clickable and fires the demo:
- *   - "Claire operates"    → navigate to Operations page
+ *   - "RM opens the book"  → navigate to Book of Business page
  *   - "She asks"           → open dock, auto-send "Why so many returns?"
  *   - "AI investigates"    → open dock (shows the investigation in progress)
  *   - "AI takes action"    → open dock, auto-send the final "send it" prompt
@@ -246,15 +245,15 @@ function JourneyDiagram({
   const steps = [
     {
       icon: <Eye className="size-5" />,
-      role: `${heroName} operates`,
-      quote: '"Returns are everywhere — my dashboard lit up."',
+      role: `${heroName} opens the book`,
+      quote: '"My book lit up — several critical-risk clients this morning."',
       highlight: false,
       onClick: () => navigate('/operations'),
     },
     {
       icon: <MessageCircleQuestion className="size-5" />,
       role: 'She asks',
-      quote: '"Why do I have so many returns?"',
+      quote: '"Why is CUST-0000214 at risk of leaving?"',
       highlight: false,
       onClick: () =>
         step0
@@ -264,14 +263,14 @@ function JourneyDiagram({
     {
       icon: <Brain className="size-5" />,
       role: 'AI investigates',
-      quote: '"A bad production batch at one facility. 3 SKUs. Quality issue on the line."',
+      quote: '"An 18-month CD maturing in days and balances drifting out after a competitor rate move."',
       highlight: true,
       onClick: () => dockController.open(),
     },
     {
       icon: <Wrench className="size-5" />,
-      role: 'AI takes action',
-      quote: '"Found the hidden premiums. Drafted both emails. Sent."',
+      role: 'AI recommends + acts',
+      quote: '"Ranked the options, drafted the retention offer. Approved and logged."',
       highlight: true,
       onClick: () => {
         // Fire step-1 (accept + draft). If user is mid-chain the dock will

@@ -3,7 +3,7 @@
  * feed. If you add a new status or tier, update both the type union in
  * shared/types.ts and the colour map here.
  */
-import type { ReturnStatus, RiskBand, ActionType, RmActionStatus } from './types';
+import type { RiskBand, ActionType, RmActionStatus } from './types';
 
 /** Compact USD, e.g. $1.1M / $420K. */
 export function usd(n: number | null | undefined, compact = true): string {
@@ -66,22 +66,6 @@ export function ActionStatusBadge({ status }: { status: RmActionStatus }) {
     approved: 'bg-[var(--success-subtle)] text-[var(--success-subtle-foreground)]',
     executed: 'bg-[var(--success-subtle)] text-[var(--success-subtle-foreground)]',
     overridden: 'bg-[var(--warning-subtle)] text-[var(--warning-subtle-foreground)]',
-  };
-  return (
-    <span
-      className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${styles[status]}`}
-    >
-      {status}
-    </span>
-  );
-}
-
-export function StatusBadge({ status }: { status: ReturnStatus }) {
-  const styles: Record<ReturnStatus, string> = {
-    pending: 'bg-muted text-foreground',
-    approved: 'bg-[var(--success-subtle)] text-[var(--success-subtle-foreground)]',
-    rejected: 'bg-muted text-muted-foreground',
-    escalated: 'bg-[var(--warning-subtle)] text-[var(--warning-subtle-foreground)]',
   };
   return (
     <span

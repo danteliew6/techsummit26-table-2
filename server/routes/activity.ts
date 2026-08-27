@@ -3,7 +3,7 @@ import { recentActivity } from '../db/queries/index.js';
 import type { AppDb } from '../db/index.js';
 
 /**
- * Unified activity feed — email sends, coupon issuance, return decisions.
+ * Unified activity feed — recorded RM next-best-action decisions.
  * Powers the home-page "Recent activity" list.
  */
 export function registerActivityRoutes(

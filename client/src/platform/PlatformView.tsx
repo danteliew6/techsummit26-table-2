@@ -672,10 +672,10 @@ function ActScene() {
             Live
           </text>
           {[
-            'Refund processed · $52',
-            'Coupon sent · CUST-…',
+            'Action logged · retention_offer',
+            'Outreach drafted · CUST-…',
             'Audit logged',
-            'Refund processed · $68',
+            'Action logged · cross_sell',
           ].map((t, i) => (
             <g key={i} transform={`translate(10 ${28 + i * 12})`}>
               <circle r="2" cx="2" cy="-2" fill="var(--primary)" opacity={1 - i * 0.2} />
@@ -1078,7 +1078,7 @@ function AgenticAppsStrip() {
         <div className="dx-mas-question">
           <span className="dx-mas-question-chev">?</span>
           <span className="dx-mas-question-text">
-            <span className="dx-mas-question-typed">Why are refunds up?</span>
+            <span className="dx-mas-question-typed">Why is CUST-0000214 at risk?</span>
             <span className="dx-mas-question-caret" />
           </span>
         </div>
@@ -1105,7 +1105,7 @@ function AgenticAppsStrip() {
               <BookOpen className="size-3" />
             </span>
             <span className="dx-mas-agent-name">Knowledge Assistant</span>
-            <span className="dx-mas-agent-task">searching refund policy…</span>
+            <span className="dx-mas-agent-task">searching product catalog…</span>
           </div>
           <div className="dx-mas-agent dx-mas-agent-3">
             <span className="dx-mas-agent-icon">

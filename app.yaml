@@ -57,3 +57,6 @@ env:
     value: exercise
   - name: GENIE_SPACE_ID
     value: 01f1a1ceebe21e4e94f04ab148801daa
+  # Embedded AI/BI dashboard: "Meridian Customer Retention".
+  - name: DASHBOARD_ID
+    value: 01f1a1d03e611c92b3b17cb1b376796f

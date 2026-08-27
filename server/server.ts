@@ -30,7 +30,7 @@
  *   • `db/sync.ts`                   — one-shot copy from Delta → Lakebase
  *                                       at boot. Update the table list.
  *   • `db/queries/returns.ts`        — domain queries; rename + rewrite.
- *   • `agent/refundops.ts`           — the agent itself. Rename the file
+ *   • `agent/relationshipdesk.ts`      — the agent itself
  *                                       to match your domain, update the
  *                                       import below, and rewrite tools +
  *                                       instructions.
@@ -112,7 +112,7 @@ type AppConfig = {
    * so multiple demos in the same workspace don't share an experiment.
    *
    * Format: `/Users/<email>/<app-name>-agent-traces`
-   * Example: `/Users/me@databricks.com/luxebeauty-operations-agent-traces`
+   * Example: `/Users/me@databricks.com/meridian-bank-agent-traces`
    *
    * The path is created via the MLflow REST API (POST /api/2.0/mlflow/
    * experiments/create); the running app's principal must have CAN_EDIT
@@ -476,7 +476,7 @@ await createApp({
   });
   // The template demo registers `ask_mas`. If your demo uses Genie
   // instead, swap masEndpointName here for genieSpaceId and update
-  // refundops.ts AgentContext + makeTools() accordingly.
+  // relationshipdesk.ts AgentContext + makeTools() accordingly.
   if (!appConfig.masEndpointName) {
     console.warn(
       '[boot] config.masEndpointName is empty — the agent won\'t have an ask_mas tool. Set it in config/app.json, or wire ask_genie if your demo uses Genie.',

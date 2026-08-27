@@ -1,5 +1,5 @@
 /**
- * PlatformDiagram — the "Running LuxeBeauty Returns on the Databricks
+ * PlatformDiagram — the "Running Meridian Retention on the Databricks
  * Platform" panel that sits on top of the /platform page. Mirrors the
  * official Data + AI Platform slide layout: a single bordered box with
  * row labels on the left and product tiles on the right, plus a flowing
@@ -279,14 +279,14 @@ export function PlatformDiagram() {
   const href = (u: string) => (u ? u : undefined);
 
   return (
-    <section className="pd-root" aria-label="LuxeBeauty on the Databricks Platform">
+    <section className="pd-root" aria-label="Meridian on the Databricks Platform">
       <style>{CSS}</style>
       <div className="pd-wrap">
         <div className="pd-hero">
           <div className="pd-brand">Databricks Platform</div>
-          <div className="pd-kick">LuxeBeauty · Returns Intelligence</div>
+          <div className="pd-kick">Meridian · Retention Intelligence</div>
           <h2>
-            Running LuxeBeauty Returns on the{' '}
+            Running Meridian Retention on the{' '}
             <span className="pd-hl">Databricks Platform</span>
           </h2>
         </div>
@@ -302,14 +302,14 @@ export function PlatformDiagram() {
             <Prod
               href={href(R.app.url)}
               icon={<AppsIcon />}
-              title="Returns Console"
-              sub="This app — queue, agent, refunds, all in one place"
+              title="Relationship Desk"
+              sub="This app — book, agent, actions, all in one place"
             />
             <Prod
               href={href(R.dashboard.url)}
               icon={<AIBIIcon />}
               title="AI/BI Dashboard"
-              sub="Where the returns are coming from — same numbers, one page"
+              sub="Where the attrition risk is — same numbers, one page"
             />
           </Row>
 
@@ -360,7 +360,7 @@ export function PlatformDiagram() {
                   <span className="pd-chip"><AgentsIcon />AGENTS</span>
                   <span className="pd-chip"><CodeIcon />CODE</span>
                 </span>
-                <span className="pd-sub">"Why do I have so many returns?"</span>
+                <span className="pd-sub">"Why is CUST-0000214 at risk?"</span>
               </span>
             </div>
             {/* Default href = the workspace-wide Agent Bricks landing
@@ -375,7 +375,7 @@ export function PlatformDiagram() {
               href={href(R.agentBricks.url)}
               icon={<AgentBricksIcon />}
               title="Agent Bricks"
-              sub="Diagnose the spike, draft apology emails, file refunds"
+              sub="Diagnose the risk, rank the next best action, log actions"
             />
           </Row>
 
@@ -389,7 +389,7 @@ export function PlatformDiagram() {
               href={href(R.catalog.url)}
               icon={<UCIcon />}
               title="Unity Catalog"
-              sub="retail_consumer_goods.luxebeauty_demo — one governed schema + lineage"
+              sub="table_2.exercise — one governed schema + lineage"
             />
             <Prod
               href={href(R.gateway.url)}
@@ -401,7 +401,7 @@ export function PlatformDiagram() {
 
           <Row
             ttl="Agentic Data"
-            sub="Unified, real-time data foundation — the returns story"
+            sub="Unified, real-time data foundation — the retention story"
           >
             <div className="pd-story">
               <FlowKeyframes />
@@ -438,7 +438,7 @@ export function PlatformDiagram() {
                   href={href(R.lakebase.url)}
                   icon={<LakebaseIcon />}
                   title="Lakebase"
-                  sub="Returns Console reads/writes the queue live · branch on reset"
+                  sub="Relationship Desk reads/writes actions live · branch on reset"
                 />
               </div>
             </div>
@@ -466,7 +466,7 @@ export function PlatformDiagram() {
             href={href(R.volume.url)}
             target="_blank"
             rel="noopener noreferrer"
-            title="Manufacturing PDFs on a Unity Catalog Volume"
+            title="Product docs on a Unity Catalog Volume"
           >
             <UploadArrow />Upload · file on Volume
           </a>
@@ -475,19 +475,19 @@ export function PlatformDiagram() {
         <div className="pd-sources">
           <div className="pd-src">
             <span className="pd-tile"><SrcIcon d={SRC.scan} /></span>
-            <span className="pd-tx"><b>Order POS</b><span>400K orders · 24mo</span></span>
+            <span className="pd-tx"><b>Core Banking</b><span>accounts · balances</span></span>
           </div>
           <div className="pd-src">
             <span className="pd-tile"><SrcIcon d={SRC.bet} /></span>
-            <span className="pd-tx"><b>CS Tickets</b><span>returns · sentiment</span></span>
+            <span className="pd-tx"><b>Transactions</b><span>deposits · outflows</span></span>
           </div>
           <div className="pd-src">
             <span className="pd-tile"><SrcIcon d={SRC.odds} /></span>
-            <span className="pd-tx"><b>Production Lots</b><span>QC + lot manifests</span></span>
+            <span className="pd-tx"><b>CS Interactions</b><span>notes · sentiment</span></span>
           </div>
           <div className="pd-src">
             <span className="pd-tile"><SrcIcon d={SRC.pdf} /></span>
-            <span className="pd-tx"><b>Manufacturing PDFs</b><span>incident reports → KA</span></span>
+            <span className="pd-tx"><b>Product Catalog</b><span>terms + rates → search</span></span>
           </div>
         </div>
 

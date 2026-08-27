@@ -7,6 +7,7 @@
 import { okOrThrow } from './api';
 import type {
   ActionType,
+  ActivityEvent,
   CustomerPositionRow,
   NbaRecommendationRow,
   OpenAtriskRow,
@@ -14,6 +15,15 @@ import type {
   RmActionRow,
   RmActionStatus,
 } from '@/shared/types';
+
+/** Unified activity feed (rm_actions) — powers the home page "Recent activity". */
+export async function fetchActivity(limit = 20): Promise<ActivityEvent[]> {
+  const res = await okOrThrow(
+    await fetch(`/api/activity/recent?limit=${limit}`),
+    '/api/activity/recent',
+  );
+  return res.json();
+}
 
 /** The Customer 360 bundle returned by GET /api/relationships/customers/:id. */
 export type CustomerDetailBundle = {

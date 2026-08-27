@@ -272,7 +272,7 @@ function ThumbsDownModal({ onClose, onSubmit, traceUrl }: ModalProps) {
             <textarea
               value={rationale}
               onChange={(e) => setRationale(e.target.value)}
-              placeholder="e.g. Didn't return the lot number I asked for"
+              placeholder="e.g. Didn't rank the retention offer I asked for"
               disabled={state === 'saving'}
               rows={4}
               className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-foreground/40 disabled:opacity-60 resize-none"

@@ -24,7 +24,7 @@ type Deps = {
   appConfig: {
     /** MAS endpoint name. Template demo registers `ask_mas` against
      * this; if your demo uses Genie, replace with `genieSpaceId` here
-     * and in refundops.ts. See server/agent/tools/{mas,genie}.ts. */
+     * and in relationshipdesk.ts. See server/agent/tools/{mas,genie}.ts. */
     masEndpointName: string;
     agentModel?: string;
   };

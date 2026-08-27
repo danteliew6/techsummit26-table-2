@@ -18,7 +18,7 @@
   //   genieSpaceId → swap to askGenieTool in server/agent/<name>.ts makeTools.
   //   Both empty → no data tool → agent can't answer "why" questions.
   //   Template ships with MAS; for a Genie-only demo set GENIE_SPACE_ID, leave
-  //   MAS_ENDPOINT_NAME empty, and swap ask_mas → askGenieTool in refundops.ts
+  //   MAS_ENDPOINT_NAME empty, and swap ask_mas → askGenieTool in relationshipdesk.ts
   //   makeTools. For both: register both with distinct names + tell the model
   //   in instructions when to prefer each.
   "masEndpointName": "${MAS_ENDPOINT_NAME:}",
@@ -45,15 +45,15 @@
   "kaEndpointName":    "${KA_ENDPOINT_NAME:}",
   "lakebaseProjectId": "${LAKEBASE_PROJECT_ID:}",
   "appUrl":            "${APP_URL:}",
-  "mlModelName":       "${DEMO_CATALOG:ai_demo_gen}.${DEMO_SCHEMA:meridian_bank}.nba_recommender",
+  "mlModelName":       "${DEMO_CATALOG:table_2}.${DEMO_SCHEMA:exercise}.nba_recommender",
 
   // Delta source for boot-time Lakebase mirror (server/db/sync.ts). catalog +
   // schema come from env; the table NAMES are domain-specific — rename to your
   // demo's gold/silver tables (keep client/src/shared/types.ts + Drizzle
   // schema in server/db/schema.ts in sync).
   "data": {
-    "catalog": "${DEMO_CATALOG:ai_demo_gen}",
-    "schema":  "${DEMO_SCHEMA:meridian_bank}",
+    "catalog": "${DEMO_CATALOG:table_2}",
+    "schema":  "${DEMO_SCHEMA:exercise}",
     "tables": {
       "customerPosition":    "gold_customer_position",
       "openAtrisk":          "gold_open_atrisk",
