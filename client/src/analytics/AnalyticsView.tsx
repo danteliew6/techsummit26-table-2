@@ -23,8 +23,14 @@ import { BRAND_PALETTE } from '@/lib/brand';
 const usd0 = (n: number) =>
   '$' + Number(n).toLocaleString(undefined, { maximumFractionDigits: 0 });
 
-const usdM = (n: number) =>
-  '$' + (n / 1e6).toLocaleString(undefined, { maximumFractionDigits: 1 }) + 'M';
+// Adaptive currency: $X.XM for millions, $XXK for thousands, else $X — so small
+// non-zero values (e.g. a $38K cross-sell) don't collapse to a misleading "$0M".
+const usdM = (n: number) => {
+  const a = Math.abs(n);
+  if (a >= 1e6) return '$' + (n / 1e6).toLocaleString(undefined, { maximumFractionDigits: 1 }) + 'M';
+  if (a >= 1e3) return '$' + Math.round(n / 1e3).toLocaleString() + 'K';
+  return '$' + Math.round(n).toLocaleString();
+};
 
 const pct = (n: number) =>
   (n * 100).toLocaleString(undefined, { maximumFractionDigits: 1 }) + '%';
