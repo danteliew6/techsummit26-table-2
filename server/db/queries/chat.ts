@@ -102,7 +102,6 @@ export async function appendMessage(
   traceId?: string,
   thinking?: ThinkingEntry[],
   error?: string,
-  canceled?: boolean,
 ) {
   const thinkingJson = JSON.stringify(thinking ?? []);
 
@@ -118,7 +117,7 @@ export async function appendMessage(
     try {
       return await db.transaction(async (tx) => {
         const rows = await tx.execute(sql`
-          INSERT INTO app.messages (conversation_id, role, content, position, trace_id, thinking, error, canceled)
+          INSERT INTO app.messages (conversation_id, role, content, position, trace_id, thinking, error)
           SELECT
             ${conversationId}::uuid,
             ${role},
@@ -126,8 +125,7 @@ export async function appendMessage(
             COALESCE((SELECT MAX(position) FROM app.messages WHERE conversation_id = ${conversationId}::uuid), -1) + 1,
             ${traceId ?? null},
             ${thinkingJson}::jsonb,
-            ${error ?? null},
-            ${canceled ?? false}
+            ${error ?? null}
           RETURNING id, position
         `);
         await tx

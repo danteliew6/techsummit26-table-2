@@ -85,6 +85,7 @@ export function AnalyticsView() {
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
           <ChartCard
             title="Revenue at risk by band"
+            subtitle="Annual at-risk revenue across all customers, by risk severity"
             scope="All customers"
             className="lg:col-span-3"
           >
@@ -103,25 +104,32 @@ export function AnalyticsView() {
 
           <ChartCard
             title="Next best action mix"
-            scope="Predicted retained $"
+            subtitle="Multi-year relationship value by recommended action"
+            scope="Predicted retained"
             className="lg:col-span-2"
           >
-            <ChartData chartKey="nba_action_mix" height={260}>
-              {(rows) => (
-                <BarChart
-                  data={rows}
-                  xKey="recommended_action"
-                  yKey="predicted_retained_usd"
-                  colors={[BRAND_PALETTE[1] ?? BRAND_PALETTE[0]]}
-                  height={260}
-                />
-              )}
-            </ChartData>
+            <div className="h-[260px] flex flex-col justify-center">
+              <ChartData chartKey="nba_action_mix" height={220}>
+                {(rows) => (
+                  <BarChart
+                    data={rows}
+                    xKey="recommended_action"
+                    yKey="predicted_retained_usd"
+                    colors={[BRAND_PALETTE[1] ?? BRAND_PALETTE[0]]}
+                    height={220}
+                  />
+                )}
+              </ChartData>
+            </div>
           </ChartCard>
         </div>
 
         {/* At-risk revenue by relationship tier. */}
-        <ChartCard title="Revenue at risk by tier" scope="At-risk customers">
+        <ChartCard
+          title="Revenue at risk by tier"
+          subtitle="Annual at-risk revenue by customer tier"
+          scope="At-risk customers"
+        >
           <ChartData chartKey="atrisk_by_tier" height={240}>
             {(rows) => (
               <BarChart
@@ -136,7 +144,12 @@ export function AnalyticsView() {
         </ChartCard>
 
         {/* Top at-risk customers table. */}
-        <ChartCard title="Top customers at risk" scope="By revenue at risk" flush>
+        <ChartCard
+          title="Top customers at risk"
+          subtitle="Ranked by annual revenue at risk; see Details in Relationship Desk for actions"
+          scope="By revenue at risk"
+          flush
+        >
           <TopAtRiskTable />
         </ChartCard>
       </div>
@@ -151,12 +164,14 @@ export function AnalyticsView() {
  */
 function ChartCard({
   title,
+  subtitle,
   scope,
   className,
   flush,
   children,
 }: {
   title: string;
+  subtitle?: string;
   scope?: string;
   className?: string;
   flush?: boolean;
@@ -167,9 +182,14 @@ function ChartCard({
       className={`rounded-xl border border-border bg-card overflow-hidden ${className ?? ''}`}
     >
       <div className="px-4 py-2.5 border-b border-border flex items-center justify-between">
-        <h3 className="text-sm font-semibold">{title}</h3>
+        <div className="flex-1 min-w-0">
+          <h3 className="text-sm font-semibold">{title}</h3>
+          {subtitle && (
+            <p className="text-[11px] text-muted-foreground mt-0.5">{subtitle}</p>
+          )}
+        </div>
         {scope && (
-          <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground ml-2 shrink-0">
             {scope}
           </span>
         )}
@@ -230,9 +250,9 @@ type TopAtRiskRow = {
 };
 
 function bandToneClass(band: string | null): string {
-  if (band === 'critical') return 'text-[var(--severity-danger)]';
-  if (band === 'elevated') return 'text-[var(--severity-warning)]';
-  return 'text-foreground';
+  if (band === 'critical') return 'text-destructive font-semibold';
+  if (band === 'elevated') return 'text-warning font-semibold';
+  return 'text-muted-foreground';
 }
 
 function TopAtRiskTable() {

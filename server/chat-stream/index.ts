@@ -289,7 +289,6 @@ export async function handleChatStream(args: {
         traceId ?? undefined,
         thinking,
         errorText ?? undefined,
-        canceled,
       );
     } catch (e) {
       const cause = (e as { cause?: unknown }).cause as

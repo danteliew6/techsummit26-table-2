@@ -382,3 +382,60 @@ export async function recentActivity(
     };
   });
 }
+
+/**
+ * Aggregated at-risk metrics by metro (home_metro).
+ *
+ * Returns one row per metro with:
+ *   - metro: home_metro value
+ *   - lat/lng: average coordinates for the metro
+ *   - customers: count of at-risk customers
+ *   - critical: count of critical-band customers
+ *   - revenue_at_risk_usd: sum of annual revenue at risk
+ *   - balance_at_risk_usd: sum of balance at risk
+ *   - actioned_count: number of customers with approved actions
+ */
+export type AtRiskMetroRow = {
+  metro: string | null;
+  lat: number | null;
+  lng: number | null;
+  customers: number;
+  critical: number;
+  revenue_at_risk_usd: number;
+  balance_at_risk_usd: number;
+  actioned_count: number;
+};
+
+export async function getAtRiskByMetro(
+  db: AppDb,
+): Promise<AtRiskMetroRow[]> {
+  const rows = await db.execute(sql`
+    SELECT
+      cp.home_metro AS metro,
+      AVG(cp.customer_lat) AS lat,
+      AVG(cp.customer_lng) AS lng,
+      COUNT(DISTINCT cp.customer_id) AS customers,
+      COUNT(DISTINCT CASE WHEN cp.risk_band = 'critical' THEN cp.customer_id END)::bigint AS critical,
+      COALESCE(SUM(cp.revenue_at_risk_usd), 0)::double precision AS revenue_at_risk_usd,
+      COALESCE(SUM(cp.balance_at_risk_usd), 0)::double precision AS balance_at_risk_usd,
+      COUNT(DISTINCT CASE WHEN ra.id IS NOT NULL THEN cp.customer_id END)::bigint AS actioned_count
+    FROM app.customer_position cp
+    LEFT JOIN app.rm_actions ra ON cp.customer_id = ra.customer_id AND ra.status = 'approved'
+    WHERE cp.risk_band IN ('critical', 'elevated', 'watch')
+      AND cp.home_metro IS NOT NULL
+      AND (cp.customer_lat IS NOT NULL OR cp.customer_lng IS NOT NULL)
+    GROUP BY cp.home_metro
+    ORDER BY revenue_at_risk_usd DESC
+  `);
+
+  return (rows.rows ?? []).map((r: any) => ({
+    metro: r.metro ?? null,
+    lat: r.lat ? Number(r.lat) : null,
+    lng: r.lng ? Number(r.lng) : null,
+    customers: Number(r.customers) || 0,
+    critical: Number(r.critical) || 0,
+    revenue_at_risk_usd: Number(r.revenue_at_risk_usd) || 0,
+    balance_at_risk_usd: Number(r.balance_at_risk_usd) || 0,
+    actioned_count: Number(r.actioned_count) || 0,
+  }));
+}

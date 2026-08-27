@@ -13,6 +13,7 @@ import {
   updateRmActionStatus,
   searchProducts,
   getProduct,
+  getAtRiskByMetro,
 } from '../db/queries/index.js';
 import type { ActionType, RmActionStatus } from '../../client/src/shared/types.js';
 import { generateDraft } from '../lib/draft.js';
@@ -38,6 +39,17 @@ export function registerRelationshipRoutes(
       Number.isFinite(raw) && raw >= 1 ? Math.min(Math.floor(raw), 500) : 200;
     const rows = await listAtRiskCustomers(db, limit);
     res.json(rows);
+  });
+
+  // At-risk by metro: aggregated bubbles for the C-suite map.
+  app.get('/api/relationships/at-risk/by-metro', async (_req, res) => {
+    try {
+      const rows = await getAtRiskByMetro(db);
+      res.json(rows);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      res.status(500).json({ error: message });
+    }
   });
 
   // KPI strip: balance-at-risk $, revenue-at-risk $, at-risk count.

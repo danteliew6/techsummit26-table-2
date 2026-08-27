@@ -82,11 +82,6 @@ export const messages = appSchema.table(
     // If the agent run failed, the error message is persisted here so a
     // page reload still shows what went wrong (instead of an empty bubble).
     error: text('error'),
-    // True when the turn was stopped by the user (Stop button or page
-    // navigation away from an in-flight stream). The assistant's partial
-    // streamed content is still kept in `content` for context; the UI
-    // renders a "Canceled by the user" banner below it.
-    canceled: boolean('canceled').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),

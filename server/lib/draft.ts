@@ -64,24 +64,33 @@ ${rateInfo}${maturityInfo}
     maxRetries: 2,
   });
 
-  // Non-streaming single response call.
-  const response = await client.chat.completions.create({
+  // Non-streaming single response call using the Responses API.
+  const response = await (client.responses as any).create({
     model: config.model,
-    messages: [
+    max_output_tokens: 200,
+    input: [
       {
         role: 'system',
-        content: `You are a relationship-manager assistant at Meridian Bank. Draft a concise, warm, professional outreach message (~150 words) to a customer. The message should include the specific offer (rate, product, term) inline. Never mention internal models or risk scores—translate directly to customer benefit. No preamble; just the message.`,
+        content: [
+          {
+            type: 'input_text',
+            text: `You are a relationship-manager assistant at Meridian Bank. Draft a concise, warm, professional outreach message (~150 words) to a customer. The message should include the specific offer (rate, product, term) inline. Never mention internal models or risk scores—translate directly to customer benefit. No preamble; just the message.`,
+          },
+        ],
       },
       {
         role: 'user',
-        content: `Draft an outreach message for this situation:\n\n${grounding}`,
+        content: [
+          {
+            type: 'input_text',
+            text: `Draft an outreach message for this situation:\n\n${grounding}`,
+          },
+        ],
       },
     ],
-    temperature: 0.7,
-    max_tokens: 200,
   });
 
-  const text = response.choices[0]?.message?.content?.trim();
+  const text = response.output_text?.trim();
   if (!text) {
     throw new Error('Model returned empty response');
   }

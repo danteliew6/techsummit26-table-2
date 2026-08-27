@@ -8,6 +8,7 @@ import { okOrThrow } from './api';
 import type {
   ActionType,
   ActivityEvent,
+  AtRiskMetroRow,
   CustomerPositionRow,
   NbaRecommendationRow,
   OpenAtriskRow,
@@ -41,6 +42,14 @@ export async function fetchAtRiskCustomers(
   const res = await okOrThrow(
     await fetch(`/api/relationships/at-risk?limit=${limit}`),
     '/api/relationships/at-risk',
+  );
+  return res.json();
+}
+
+export async function fetchAtRiskByMetro(): Promise<AtRiskMetroRow[]> {
+  const res = await okOrThrow(
+    await fetch('/api/relationships/at-risk/by-metro'),
+    '/api/relationships/at-risk/by-metro',
   );
   return res.json();
 }

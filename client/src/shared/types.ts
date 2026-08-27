@@ -152,6 +152,17 @@ export type MetroBucket = {
   riskBand: RiskBand;
 };
 
+export type AtRiskMetroRow = {
+  metro: string | null;
+  lat: number | null;
+  lng: number | null;
+  customers: number;
+  critical: number;
+  revenue_at_risk_usd: number;
+  balance_at_risk_usd: number;
+  actioned_count: number;
+};
+
 export type ActivityEvent =
   | {
       kind: 'rm_action';

@@ -10,11 +10,11 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Sparkles, ArrowRight } from 'lucide-react';
-import { fetchAtRiskCustomers, fetchRiskMetrics } from '@/lib/relationships';
+import { fetchAtRiskCustomers, fetchRiskMetrics, fetchAtRiskByMetro } from '@/lib/relationships';
 import { useSession } from '@/lib/api';
 import { dataMutated } from '@/lib/events';
 import { dockController } from '@/chat/dockController';
-import type { CustomerPositionRow, RiskBand, RiskMetrics } from '@/shared/types';
+import type { CustomerPositionRow, RiskBand, RiskMetrics, AtRiskMetroRow } from '@/shared/types';
 
 import { CityMap } from './CityMap';
 import { KpiCards } from './KpiCards';
@@ -25,8 +25,10 @@ type BandFilter = RiskBand | 'all';
 
 export function OperationsView() {
   const [rows, setRows] = useState<CustomerPositionRow[]>([]);
+  const [metros, setMetros] = useState<AtRiskMetroRow[]>([]);
   const [metrics, setMetrics] = useState<RiskMetrics | null>(null);
   const [bandFilter, setBandFilter] = useState<BandFilter>('all');
+  const [metroFilter, setMetroFilter] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -36,12 +38,14 @@ export function OperationsView() {
   async function reload() {
     setLoading(true);
     try {
-      const [list, m] = await Promise.all([
+      const [list, m, metroData] = await Promise.all([
         fetchAtRiskCustomers(500),
         fetchRiskMetrics(),
+        fetchAtRiskByMetro(),
       ]);
       setRows(list);
       setMetrics(m);
+      setMetros(metroData);
       setError(null);
     } catch (e) {
       setError((e as Error).message);
@@ -59,13 +63,14 @@ export function OperationsView() {
     const q = search.trim().toLowerCase();
     return rows.filter((r) => {
       if (bandFilter !== 'all' && r.riskBand !== bandFilter) return false;
+      if (metroFilter && r.homeMetro !== metroFilter) return false;
       if (!q) return true;
       return (
         r.customerId.toLowerCase().includes(q) ||
         (r.homeMetro ?? '').toLowerCase().includes(q)
       );
     });
-  }, [rows, search, bandFilter]);
+  }, [rows, search, bandFilter, metroFilter]);
 
   return (
     <div className="h-full overflow-y-auto">
@@ -114,7 +119,51 @@ export function OperationsView() {
 
         <KpiCards metrics={metrics} />
 
-        <CityMap customers={filteredRows} />
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-4">
+          <CityMap metros={metros} onMetroSelect={setMetroFilter} />
+
+          <div className="rounded-xl border border-border bg-card overflow-hidden">
+            <div className="px-4 py-3 border-b border-border">
+              <h3 className="text-sm font-semibold">At-risk hotspots</h3>
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Click a bubble to filter the table
+              </p>
+            </div>
+            <div className="overflow-y-auto max-h-[340px]">
+              {metros.length === 0 ? (
+                <div className="px-4 py-6 text-sm text-muted-foreground text-center">
+                  No metros with at-risk customers.
+                </div>
+              ) : (
+                <div className="divide-y divide-border">
+                  {metros.map((m) => {
+                    const isSelected = metroFilter === m.metro;
+                    const pctActioned = m.customers > 0 ? ((m.actioned_count / m.customers) * 100).toFixed(0) : '0';
+                    const pctCritical = m.customers > 0 ? ((m.critical / m.customers) * 100).toFixed(0) : '0';
+                    return (
+                      <button
+                        key={m.metro}
+                        onClick={() => setMetroFilter(isSelected ? null : m.metro)}
+                        className={`w-full text-left px-4 py-3 text-sm transition-colors ${
+                          isSelected
+                            ? 'bg-primary/10 border-l-2 border-l-primary'
+                            : 'hover:bg-muted/30'
+                        }`}
+                      >
+                        <div className="font-semibold text-foreground">{m.metro ?? 'Unknown'}</div>
+                        <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
+                          <div>${(m.revenue_at_risk_usd / 1_000_000).toFixed(2)}M at risk</div>
+                          <div>{m.customers} customers · {pctCritical}% critical</div>
+                          <div>{pctActioned}% actioned</div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
 
         <ReturnsTable
           rows={filteredRows}
