@@ -86,13 +86,13 @@ export function AnalyticsView() {
           <ChartCard
             title="Revenue at risk by band"
             subtitle="Annual at-risk revenue across all customers, by risk severity"
-            scope="All customers"
+            scope="All customers (US$M)"
             className="lg:col-span-3"
           >
             <ChartData chartKey="risk_by_band" height={260}>
               {(rows) => (
                 <BarChart
-                  data={rows}
+                  data={rows.map((r) => ({ ...r, revenue_at_risk_usd: (r.revenue_at_risk_usd ?? 0) / 1e6 }))}
                   xKey="risk_band"
                   yKey="revenue_at_risk_usd"
                   colors={[BRAND_PALETTE[0]]}
@@ -105,14 +105,14 @@ export function AnalyticsView() {
           <ChartCard
             title="Next best action mix"
             subtitle="Multi-year relationship value by recommended action"
-            scope="Predicted retained"
+            scope="Predicted retained (US$M)"
             className="lg:col-span-2"
           >
             <div className="h-[260px] flex flex-col justify-center">
               <ChartData chartKey="nba_action_mix" height={220}>
                 {(rows) => (
                   <BarChart
-                    data={rows}
+                    data={rows.map((r) => ({ ...r, predicted_retained_usd: (r.predicted_retained_usd ?? 0) / 1e6 }))}
                     xKey="recommended_action"
                     yKey="predicted_retained_usd"
                     colors={[BRAND_PALETTE[1] ?? BRAND_PALETTE[0]]}
@@ -128,12 +128,12 @@ export function AnalyticsView() {
         <ChartCard
           title="Revenue at risk by tier"
           subtitle="Annual at-risk revenue by customer tier"
-          scope="At-risk customers"
+          scope="At-risk customers (US$M)"
         >
           <ChartData chartKey="atrisk_by_tier" height={240}>
             {(rows) => (
               <BarChart
-                data={rows}
+                data={rows.map((r) => ({ ...r, revenue_at_risk_usd: (r.revenue_at_risk_usd ?? 0) / 1e6 }))}
                 xKey="tier"
                 yKey="revenue_at_risk_usd"
                 colors={[BRAND_PALETTE[0]]}
