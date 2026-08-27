@@ -299,8 +299,6 @@ export async function createRmAction(
       approvedBy: action.approvedBy ?? null,
       auditTrail: audit,
       decidedAt: status === 'approved' || status === 'executed' ? now : null,
-      // Use SP-owned sequence in app_rt schema instead of default
-      id: sql`nextval('app_rt.rm_actions_id_seq')`,
     })
     .returning();
   return toRmAction(rows[0]);

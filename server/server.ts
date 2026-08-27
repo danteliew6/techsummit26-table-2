@@ -416,9 +416,8 @@ let db: ReturnType<typeof createDb>;
 // we never reference the returned map at the top level.
 await createApp({
   // Disable persistent cache to avoid "must be owner of table
-  // appkit_cache_entries" errors. When enabled: false, AppKit falls back to
-  // in-memory caching (per CacheManager's fallback logic).
-  cache: { enabled: false },
+  // appkit_cache_entries" errors. Use in-memory cache instead.
+  cache: { mode: 'memory' },
   plugins: [
     // Server auto-starts after onPluginsReady (AppKit 0.41+). The route
     // registration MUST run in onPluginsReady so it lands before the server
@@ -551,56 +550,6 @@ console.log(`[boot +${ms()}] Server listening — background init in progress…
 // DB-dependent /api routes block on `migrationsReady` via the gate above.
 // ============================================================================
 
-/**
- * Create SP-owned sequences for app.conversations, app.messages, app.feedback, and app.rm_actions
- * if they don't exist, seeding them with values above the current max id.
- *
- * Background: the app.* tables have integer id columns backed by sequences owned by
- * sergio.ballesteros. The service principal lacks USAGE permission on those sequences
- * and cannot insert. This boot step creates SP-owned sequences in app_rt schema
- * that the app can use instead.
- */
-async function ensureAppManagedSequences(db: AppDb): Promise<void> {
-  const tables = ['conversations', 'messages', 'feedback', 'rm_actions'];
-  const sequenceSchema = 'app_rt';
-
-  try {
-    // Create the schema for SP-owned sequences
-    await db.execute(sql`CREATE SCHEMA IF NOT EXISTS ${sql.identifier(sequenceSchema)}`);
-
-    // For each table, create a sequence and seed it above the current max id
-    for (const table of tables) {
-      const seqName = `${table}_id_seq`;
-      const seqFullName = `${sequenceSchema}.${seqName}`;
-
-      await db.execute(
-        sql`CREATE SEQUENCE IF NOT EXISTS ${sql.identifier(sequenceSchema, seqName)}`
-      );
-
-      // Seed the sequence with GREATEST(MAX(id), 1), with is_called = has_rows
-      // This ensures nextval() returns max+1 if rows exist, or 1 if empty
-      const result = await db.execute(sql`
-        SELECT setval(
-          ${seqFullName}::regclass,
-          GREATEST((SELECT COALESCE(MAX(id), 0) FROM ${sql.identifier('app', table)}), 1),
-          (SELECT COUNT(*) > 0 FROM ${sql.identifier('app', table)})
-        )
-      `);
-
-      console.log(
-        `[boot +${ms()}] Sequence initialized: ${seqFullName} (nextval will start at result)`
-      );
-    }
-  } catch (e) {
-    // Log a clear warning but don't crash boot — the inserts might work if sequences
-    // are already set up, or subsequent queries will fail and be caught by the gate.
-    logErrorCompact(
-      '[boot] Failed to initialize SP-owned sequences for app tables:',
-      e
-    );
-  }
-}
-
 function startBackgroundInit() {
 // Resolve MLflow experiment ID (HTTP call) in parallel with DB init,
 // but defer mlflow.init() until after sync — otherwise the SDK instruments
@@ -649,11 +598,6 @@ const mlflowIdPromise = (async () => {
 // what the /api gate middleware awaits.
 migrationsReady = (async () => {
   try {
-    // Boot step: ensure SP-owned sequences exist for app.* writable tables.
-    // This must run BEFORE migrations (migrations might try to use these tables)
-    // and is idempotent — safe to run every boot.
-    await ensureAppManagedSequences(db);
-
     // The Lakebase schema here is EXTERNALLY provisioned: app.* are views over
     // UC synced tables plus the writable app.rm_actions, all created and owned
     // outside this app. The template's Drizzle migrations (which CREATE the
