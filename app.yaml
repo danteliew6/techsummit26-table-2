@@ -14,7 +14,7 @@
 #      scripts/build-app.sh and dist/ ships via DAB sync.include).
 #   3. The `command:` below starts the server.
 
-command: ['node', '--env-file-if-exists=.env', 'dist/server.js']
+command: ['sh', '-c', 'npm run build && node --env-file-if-exists=.env dist/server.js']
 
 # Scopes minted into the user's OBO token (x-forwarded-access-token).
 user_authorization:
