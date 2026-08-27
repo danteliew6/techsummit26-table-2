@@ -67,11 +67,20 @@ export function AppSidebar() {
           >
             {(config?.branding.appName ?? '•')[0]?.toUpperCase()}
           </div>
-          <div className="flex flex-col leading-tight overflow-hidden group-data-[collapsible=icon]:hidden">
-            <span className="text-sm font-semibold truncate">
-              {config?.branding.appName ?? 'Loading…'}
-            </span>
-          </div>
+          {(() => {
+            const appName = config?.branding.appName ?? 'Loading…';
+            const [head, ...rest] = appName.split(' ');
+            return (
+              <div className="flex flex-col leading-tight group-data-[collapsible=icon]:hidden">
+                <span className="text-sm font-semibold whitespace-nowrap">{head}</span>
+                {rest.length > 0 && (
+                  <span className="text-[11px] font-medium text-sidebar-foreground/60 whitespace-nowrap">
+                    {rest.join(' ')}
+                  </span>
+                )}
+              </div>
+            );
+          })()}
         </NavLink>
       </SidebarHeader>
 
