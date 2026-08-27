@@ -17,11 +17,17 @@
  * charts.ts's QUERY_FILES map, and reference it here via <ChartData chartKey=…>.
  */
 import { useEffect, useState } from 'react';
-import { BarChart } from '@databricks/appkit-ui/react';
+import { BarChart, DonutChart } from '@databricks/appkit-ui/react';
 import { BRAND_PALETTE } from '@/lib/brand';
 
 const usd0 = (n: number) =>
   '$' + Number(n).toLocaleString(undefined, { maximumFractionDigits: 0 });
+
+const usdM = (n: number) =>
+  '$' + (n / 1e6).toLocaleString(undefined, { maximumFractionDigits: 1 }) + 'M';
+
+const pct = (n: number) =>
+  (n * 100).toLocaleString(undefined, { maximumFractionDigits: 1 }) + '%';
 
 /**
  * Fetch chart rows from the server's /api/charts/<key> route. That route
@@ -152,6 +158,59 @@ export function AnalyticsView() {
         >
           <TopAtRiskTable />
         </ChartCard>
+
+        {/* Retention cockpit: urgency, ROI, rate gap, coverage. */}
+        <div className="mt-12 pt-6 border-t border-muted-foreground/20">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground mb-2">
+              Retention program
+            </div>
+            <h2 className="text-2xl font-semibold tracking-tight text-foreground mb-2">
+              Execution dashboard.
+            </h2>
+            <p className="text-muted-foreground max-w-2xl text-sm">
+              Track urgency, ROI, and coverage of retention actions. The funnel shows
+              how much of the at-risk book is covered by recommendations and actions.
+            </p>
+          </div>
+        </div>
+
+        {/* Maturity urgency. */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <ChartCard
+            title="Maturity urgency"
+            subtitle="Revenue at risk by days to product maturity"
+            scope="Act-now window"
+          >
+            <MaturityUrgency />
+          </ChartCard>
+
+          <ChartCard
+            title="Retention ROI by action"
+            subtitle="Predicted net value + retained revenue per play"
+            scope="Predicted value (US$M)"
+          >
+            <RetentionROI />
+          </ChartCard>
+        </div>
+
+        {/* Rate gap analysis. */}
+        <ChartCard
+          title="Rate gap analysis"
+          subtitle="Current APY vs recommended lift needed for at-risk deposits"
+          scope="Basis points (bps)"
+        >
+          <RateGapAnalysis />
+        </ChartCard>
+
+        {/* Retention coverage funnel. */}
+        <ChartCard
+          title="Retention coverage funnel"
+          subtitle="At-risk revenue flowing through recommendation → action stages"
+          scope="Coverage funnel (US$M)"
+        >
+          <RetentionCoverageFunnel />
+        </ChartCard>
       </div>
     </div>
   );
@@ -249,10 +308,167 @@ type TopAtRiskRow = {
   min_days_to_maturity: number | null;
 };
 
+type MaturityUrgencyRow = {
+  maturity_bucket: string;
+  customers: number;
+  revenue_at_risk_usd: number;
+};
+
+type RetentionROIRow = {
+  recommended_action: string;
+  customers: number;
+  predicted_retained_usd: number;
+  predicted_net_value_usd: number;
+};
+
+type RateGapRow = {
+  rate_gap_bucket: string;
+  customers: number;
+  avg_current_rate_apy: number;
+  avg_recommended_rate_apy: number;
+  revenue_at_risk_usd: number;
+};
+
+type RetentionCoverageFunnelRow = {
+  stage: string;
+  customers: number;
+  revenue_at_risk_usd: number;
+};
+
 function bandToneClass(band: string | null): string {
   if (band === 'critical') return 'text-destructive font-semibold';
   if (band === 'elevated') return 'text-warning font-semibold';
   return 'text-muted-foreground';
+}
+
+function MaturityUrgency() {
+  const { data, error, isLoading } = useChartData<MaturityUrgencyRow>('maturity_urgency');
+  if (error) {
+    return <div className="flex items-center justify-center h-[260px] text-sm text-destructive">Error: {error}</div>;
+  }
+  if (isLoading || !data) {
+    return <div className="flex items-center justify-center h-[260px] text-sm text-muted-foreground">Loading…</div>;
+  }
+  if (data.length === 0) {
+    return <div className="flex items-center justify-center h-[260px] text-sm text-muted-foreground">No data.</div>;
+  }
+  return (
+    <BarChart
+      data={data.map((r) => ({ ...r, revenue_at_risk_usd: (r.revenue_at_risk_usd ?? 0) / 1e6 }))}
+      xKey="maturity_bucket"
+      yKey="revenue_at_risk_usd"
+      colors={[BRAND_PALETTE[2] ?? BRAND_PALETTE[0]]}
+      height={260}
+    />
+  );
+}
+
+function RetentionROI() {
+  const { data, error, isLoading } = useChartData<RetentionROIRow>('retention_roi_by_action');
+  if (error) {
+    return <div className="flex items-center justify-center h-[260px] text-sm text-destructive">Error: {error}</div>;
+  }
+  if (isLoading || !data) {
+    return <div className="flex items-center justify-center h-[260px] text-sm text-muted-foreground">Loading…</div>;
+  }
+  if (data.length === 0) {
+    return <div className="flex items-center justify-center h-[260px] text-sm text-muted-foreground">No data.</div>;
+  }
+  // Display as a table of actions with their metrics for clarity
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm tabular-nums">
+        <thead className="text-[11px] uppercase tracking-[0.1em] text-muted-foreground">
+          <tr className="border-b border-border">
+            <th className="text-left font-medium px-3 py-2">Action</th>
+            <th className="text-right font-medium px-3 py-2">Customers</th>
+            <th className="text-right font-medium px-3 py-2">Predicted Retained</th>
+            <th className="text-right font-medium px-3 py-2">Net Value</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border">
+          {data.map((row) => (
+            <tr key={row.recommended_action} className="hover:bg-muted/40">
+              <td className="px-3 py-2 capitalize">{(row.recommended_action ?? '—').replace(/_/g, ' ')}</td>
+              <td className="px-3 py-2 text-right">{row.customers}</td>
+              <td className="px-3 py-2 text-right font-mono text-muted-foreground">{usdM(row.predicted_retained_usd)}</td>
+              <td className="px-3 py-2 text-right font-mono font-semibold">{usdM(row.predicted_net_value_usd)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function RateGapAnalysis() {
+  const { data, error, isLoading } = useChartData<RateGapRow>('rate_gap_analysis');
+  if (error) {
+    return <div className="flex items-center justify-center h-[260px] text-sm text-destructive">Error: {error}</div>;
+  }
+  if (isLoading || !data) {
+    return <div className="flex items-center justify-center h-[260px] text-sm text-muted-foreground">Loading…</div>;
+  }
+  if (data.length === 0) {
+    return <div className="flex items-center justify-center h-[260px] text-sm text-muted-foreground">No data.</div>;
+  }
+  return (
+    <BarChart
+      data={data.map((r) => ({ ...r, revenue_at_risk_usd: (r.revenue_at_risk_usd ?? 0) / 1e6 }))}
+      xKey="rate_gap_bucket"
+      yKey="revenue_at_risk_usd"
+      colors={[BRAND_PALETTE[1] ?? BRAND_PALETTE[0]]}
+      height={260}
+    />
+  );
+}
+
+function RetentionCoverageFunnel() {
+  const { data, error, isLoading } = useChartData<RetentionCoverageFunnelRow>('retention_coverage_funnel');
+  if (error) {
+    return <div className="flex items-center justify-center h-[240px] text-sm text-destructive">Error: {error}</div>;
+  }
+  if (isLoading || !data) {
+    return <div className="flex items-center justify-center h-[240px] text-sm text-muted-foreground">Loading…</div>;
+  }
+  if (data.length === 0) {
+    return <div className="flex items-center justify-center h-[240px] text-sm text-muted-foreground">No data.</div>;
+  }
+  // Compute coverage percentages for display
+  const total = data.find(d => d.stage === 'Total at-risk revenue');
+  const totalRevenue = total?.revenue_at_risk_usd ?? 0;
+  const colors = [BRAND_PALETTE[0], BRAND_PALETTE[1], BRAND_PALETTE[2]];
+
+  return (
+    <div className="space-y-4 py-2">
+      {data.map((row, idx) => {
+        const pctCoverage = totalRevenue > 0 ? (row.revenue_at_risk_usd / totalRevenue) * 100 : 0;
+        return (
+          <div key={row.stage} className="space-y-1">
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-medium">{row.stage}</span>
+              <span className="text-right">
+                <span className="font-mono font-semibold">{usdM(row.revenue_at_risk_usd)}</span>
+                {' '}
+                <span className="text-muted-foreground text-xs">
+                  {row.customers.toLocaleString()} customers
+                </span>
+              </span>
+            </div>
+            <div className="bg-muted rounded-full h-1.5 overflow-hidden">
+              <div
+                className="h-full transition-all duration-300"
+                style={{ width: `${pctCoverage}%`, backgroundColor: colors[idx % colors.length] }}
+              />
+            </div>
+            <div className="text-xs text-muted-foreground text-right">
+              {pctCoverage.toLocaleString(undefined, { maximumFractionDigits: 1 })}% of at-risk
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 function TopAtRiskTable() {

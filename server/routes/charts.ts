@@ -71,6 +71,10 @@ const QUERY_FILES: Record<string, string> = {
   atrisk_by_tier: 'atrisk_by_tier.sql',
   nba_action_mix: 'nba_action_mix.sql',
   top_atrisk_customers: 'top_atrisk_customers.sql',
+  maturity_urgency: 'maturity_urgency.sql',
+  retention_roi_by_action: 'retention_roi_by_action.sql',
+  rate_gap_analysis: 'rate_gap_analysis.sql',
+  retention_coverage_funnel: 'retention_coverage_funnel.sql',
 };
 
 export function registerChartRoutes(app: Application, deps: ChartsDeps): void {
