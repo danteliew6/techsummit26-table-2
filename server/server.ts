@@ -62,9 +62,10 @@ import {
   analytics,
   getExecutionContext,
 } from '@databricks/appkit';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { dirname, resolve } from 'node:path';
+import { dirname, resolve, join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { parse as parseJsonc, type ParseError, printParseErrorCode } from 'jsonc-parser';
 import { z } from 'zod';
 
@@ -667,25 +668,49 @@ void (async () => {
       console.warn('[boot] could not resolve MLflow exporter auth from the app client — trace upload may fail:', (e as Error).message);
     }
 
-    // When using explicit OAuth token, temporarily unset the PAT to avoid
-    // "more than one authorization method configured: oauth and pat" error.
-    // mlflow-tracing will use the explicit host+databricksToken we pass.
-    const savedPat = process.env.DATABRICKS_PAT_TOKEN;
+    // Auth for the tracing exporter. mlflow-tracing builds its OWN bundled
+    // @databricks/sdk-experimental Config which resolves creds from env + the
+    // default ~/.databrickscfg. Two very different runtimes:
+    //
+    //  • DEPLOY — the app authenticates as its service principal via oauth-m2m
+    //    ENV (DATABRICKS_CLIENT_ID/SECRET). If we ALSO hand mlflow a bearer as
+    //    `databricksToken` (a PAT method), its Config sees TWO auth methods and
+    //    `validate()` throws "more than one authorization method configured:
+    //    oauth and pat" on EVERY export. Fix: pass NO token and point it at an
+    //    EMPTY config file, leaving the env oauth-m2m as the single credential
+    //    — which the SDK also auto-refreshes (no 1-hour bearer expiry).
+    //
+    //  • PREVIEW/local — no env oauth-m2m; pass the explicit host + bearer the
+    //    app client already resolved (the single method), as before.
+    const hasM2M = !!(process.env.DATABRICKS_CLIENT_ID && process.env.DATABRICKS_CLIENT_SECRET);
     try {
-      if (mlflowHost && mlflowToken) {
-        delete process.env.DATABRICKS_PAT_TOKEN;
+      if (hasM2M) {
+        // Empty databrickscfg → the SDK reads no PAT from a config file, so the
+        // only remaining credential is the env oauth-m2m (client id/secret).
+        let emptyCfg: string | undefined;
+        try {
+          emptyCfg = join(tmpdir(), 'mlflow-empty-databrickscfg');
+          writeFileSync(emptyCfg, '', { flag: 'w' });
+        } catch {
+          emptyCfg = undefined;
+        }
+        mlflow.init({
+          trackingUri: 'databricks',
+          experimentId: agentExperimentId,
+          ...(emptyCfg ? { databricksConfigPath: emptyCfg } : {}),
+          ...(mlflowHost ? { host: mlflowHost } : {}),
+        });
+      } else {
+        mlflow.init({
+          trackingUri: 'databricks',
+          experimentId: agentExperimentId,
+          ...(mlflowHost && mlflowToken ? { host: mlflowHost, databricksToken: mlflowToken } : {}),
+        });
       }
-      mlflow.init({
-        trackingUri: 'databricks',
-        experimentId: agentExperimentId,
-        ...(mlflowHost && mlflowToken ? { host: mlflowHost, databricksToken: mlflowToken } : {}),
-      });
-    } finally {
-      if (savedPat !== undefined) {
-        process.env.DATABRICKS_PAT_TOKEN = savedPat;
-      }
+      console.log(`[boot +${ms()}] MLflow tracing active`);
+    } catch (e) {
+      console.warn('[boot] mlflow.init failed — agent traces will not export:', (e as Error).message);
     }
-    console.log(`[boot +${ms()}] MLflow tracing active`);
 
     // Silence one specific mlflow-tracing warning that fires for every
     // Lakebase query made outside an agent turn (route handlers persisting

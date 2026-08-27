@@ -30,6 +30,7 @@
 import { loggedTool as tool } from './logged-tool.js';
 import * as mlflow from 'mlflow-tracing';
 import { z } from 'zod';
+import { getExecutionContext } from '@databricks/appkit';
 import { authHeaders } from '../../lib/auth.js';
 import type { DataCallResult, DataToolContext, ToolProgressEvent } from './types.js';
 
@@ -47,19 +48,54 @@ export async function callGenieSpace(
     try { ctx.onToolProgress?.(ev); } catch { /* never let progress fail the tool */ }
   }
 
-  const headers = await authHeaders(ctx.req);
+  // Genie auth strategy. We PREFER the viewing user's OBO token (so the query
+  // is attributed to them). But the forwarded token only carries the `genie`
+  // scope once the user has authorized the app for it; until that consent
+  // propagates, the Genie API rejects it with 403 "invalid scope: genie".
+  // The app's SERVICE PRINCIPAL, however, is bound CAN_RUN on this Genie space
+  // (app resource binding) and its m2m token isn't scope-downscoped — so on a
+  // 403 we transparently fall back to SP credentials. `useSp` is then reused
+  // for the poll loop so the whole conversation runs under one identity.
+  async function spHeaders(): Promise<Headers> {
+    const h = new Headers();
+    const { client } = getExecutionContext();
+    await client.config.authenticate(h);
+    h.set('Content-Type', 'application/json');
+    return h;
+  }
+
+  let useSp = false;
+  let headers = await authHeaders(ctx.req);
   headers.set('Content-Type', 'application/json');
 
   // Start a Genie conversation. 2-min cap on the kickoff call — it's a
   // single REST POST; if the gateway hasn't replied by then, something's
   // broken upstream and waiting longer won't help.
   const startUrl = `${ctx.databricksHost}/api/2.0/genie/spaces/${spaceId}/start-conversation`;
-  const startResp = await fetch(startUrl, {
+  const startBody = JSON.stringify({ content: question });
+  let startResp = await fetch(startUrl, {
     method: 'POST',
     headers,
     signal: AbortSignal.timeout(2 * 60 * 1000),
-    body: JSON.stringify({ content: question }),
+    body: startBody,
   });
+  if (startResp.status === 403) {
+    // OBO token lacks the genie scope — retry as the app service principal,
+    // which has CAN_RUN on the space via the resource binding.
+    console.warn('[ask_genie] OBO token rejected (403) — retrying with app service principal.');
+    try {
+      useSp = true;
+      headers = await spHeaders();
+      startResp = await fetch(startUrl, {
+        method: 'POST',
+        headers,
+        signal: AbortSignal.timeout(2 * 60 * 1000),
+        body: startBody,
+      });
+    } catch (e) {
+      console.error('[ask_genie] service-principal auth failed:', (e as Error).message);
+    }
+  }
   if (!startResp.ok) {
     const t = await startResp.text().catch(() => '');
     console.error('[ask_genie] start-conversation failed', {
@@ -92,7 +128,7 @@ export async function callGenieSpace(
   let answer = '';
   for (let attempts = 0; attempts < POLL_MAX_ATTEMPTS; attempts++) {
     await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
-    const pollHeaders = await authHeaders(ctx.req);
+    const pollHeaders = useSp ? await spHeaders() : await authHeaders(ctx.req);
     pollHeaders.set('Content-Type', 'application/json');
     const pollResp = await fetch(pollUrl, {
       method: 'GET',
