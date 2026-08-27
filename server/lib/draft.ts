@@ -5,7 +5,6 @@
  * the agent, but as a simple non-streaming responses.create() call grounded
  * on the customer's de-identified profile summary, action type, and product/rate.
  */
-import OpenAI from 'openai';
 import type { Request } from 'express';
 import { authHeaders } from './auth.js';
 import type { CustomerPositionRow, OpenAtriskRow, ActionType } from '../../client/src/shared/types.js';
@@ -58,47 +57,40 @@ ${params.rateApy != null ? `Rate: ${(params.rateApy * 100).toFixed(2)}% APY` : '
 ${rateInfo}${maturityInfo}
 `.trim();
 
-  const client = new OpenAI({
-    apiKey,
-    baseURL: `${config.databricksHost}/ai-gateway/mlflow/v1`,
-    maxRetries: 2,
+  // Fold the instructions into a single user message — the AI Gateway Responses
+  // endpoint is proven to work with one `user` message of `input_text` (a
+  // `system` role inside `input` yields an empty response for this model).
+  const prompt = `You are a relationship-manager assistant at Meridian Bank. Draft a concise, warm, professional outreach message (~150 words) to a customer. Include the specific offer (rate, product, term) inline. Never mention internal models or risk scores — translate directly to customer benefit. No preamble; output only the message.
+
+Situation:
+${grounding}`;
+
+  // Direct call to the Databricks AI Gateway Responses endpoint (mirrors the
+  // known-working request shape rather than the SDK's responses shim).
+  const resp = await fetch(`${config.databricksHost}/ai-gateway/mlflow/v1/responses`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: config.model,
+      max_output_tokens: 400,
+      input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }] }],
+    }),
   });
 
-  // Non-streaming single response call using the Responses API.
-  const response = await (client.responses as any).create({
-    model: config.model,
-    max_output_tokens: 200,
-    input: [
-      {
-        role: 'system',
-        content: [
-          {
-            type: 'input_text',
-            text: `You are a relationship-manager assistant at Meridian Bank. Draft a concise, warm, professional outreach message (~150 words) to a customer. The message should include the specific offer (rate, product, term) inline. Never mention internal models or risk scores—translate directly to customer benefit. No preamble; just the message.`,
-          },
-        ],
-      },
-      {
-        role: 'user',
-        content: [
-          {
-            type: 'input_text',
-            text: `Draft an outreach message for this situation:\n\n${grounding}`,
-          },
-        ],
-      },
-    ],
-  });
+  if (!resp.ok) {
+    const errBody = await resp.text().catch(() => '');
+    throw new Error(`Gateway ${resp.status}: ${errBody.slice(0, 300)}`);
+  }
 
-  // Try response.output_text first (older SDK versions)
-  let text = response.output_text?.trim();
-
-  // If empty, parse from response.output[] array (newer SDK versions / gateway format)
+  const data: any = await resp.json();
+  // Prefer output_text; fall back to concatenating text from the output[] array.
+  let text: string =
+    (typeof data.output_text === 'string' ? data.output_text : '').trim();
   if (!text) {
-    text = (response.output ?? [])
-      .flatMap((o: any) => (o.content ?? []))
-      .filter((c: any) => c.type === 'output_text' || c.type === 'text')
-      .map((c: any) => c.text)
+    text = (data.output ?? [])
+      .flatMap((o: any) => o?.content ?? [])
+      .filter((c: any) => c?.type === 'output_text' || c?.type === 'text')
+      .map((c: any) => c?.text ?? '')
       .join('')
       .trim();
   }
